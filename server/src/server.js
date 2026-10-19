@@ -1,8 +1,10 @@
 ﻿require("./config/environment");
 
 const mongoose = require("mongoose");
+const http = require("node:http");
 const rateLimit = require("express-rate-limit");
 const app = require("./app");
+const attachSupportSocket = require("./services/supportSocket");
 const { optionalAuth } = require("./middleware/authMiddleware");
 const { connectDatabase, logDatabaseConnectionError } = require("./config/database");
 const { requireAuth } = require("./middleware/authMiddleware");
@@ -329,7 +331,10 @@ async function startServer() {
     console.log(`Chatbot knowledge loaded (${getKnowledgeBase().length} entries)`);
 
     const port = process.env.PORT || 3000;
-    app.listen(port, () => {
+    const httpServer = http.createServer(app);
+    const io = attachSupportSocket(httpServer);
+    app.set("io", io);
+    httpServer.listen(port, () => {
       console.log(`Server running on http://localhost:${port}`);
       backfillKnowledgeSearchData()
         .then(({ total, indexed }) => console.log(`Knowledge search index ready (${indexed} updated, ${total} total entries)`))

@@ -1,10 +1,11 @@
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 import process from 'node:process'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   test: {
     environment: 'jsdom',
     globals: true,
@@ -14,6 +15,11 @@ export default defineConfig({
       '/api': {
         target: process.env.API_TARGET || 'http://localhost:3000',
         changeOrigin: true,
+      },
+      '/socket.io': {
+        target: process.env.API_TARGET || 'http://localhost:3000',
+        changeOrigin: true,
+        ws: true,
       },
     },
     port: 5173,

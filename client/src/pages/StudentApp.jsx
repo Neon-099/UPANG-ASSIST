@@ -4,11 +4,11 @@ import SignupPage from './SignupPage'
 import { collegeCourses } from '../data/collegeCourses'
 import LoadingPage from './LoadingPage'
 import { apiRequest } from '../api'
+import { createSupportSocket } from '../supportSocket'
 import upangLogo from '../assets/upang logo.png'
 import ThoughtLine from '../ThoughtLine'
 import BorderGlow from '../BorderGlow'
 import '../App.css'
-import '../Login.css'
 
 const inquiryCards = [
   {
@@ -108,7 +108,6 @@ function getNextId(prefix = 'item') {
 export default function App() {
   const [view, setView] = useState('login')
   const [isCheckingSession, setIsCheckingSession] = useState(true)
-  const [authTransitionPhase, setAuthTransitionPhase] = useState(null)
   const [isLoadingHome, setIsLoadingHome] = useState(false)
   const [userName, setUserName] = useState('')
   const [userRole, setUserRole] = useState('')
@@ -123,7 +122,10 @@ export default function App() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([])
   const [supportConversation, setSupportConversation] = useState(null)
+  const supportSocketRef = useRef(null)
   const [supportPanelOpen, setSupportPanelOpen] = useState(false)
+  const supportPanelOpenRef = useRef(supportPanelOpen)
+  supportPanelOpenRef.current = supportPanelOpen
   const [supportDraft, setSupportDraft] = useState('')
   const [supportBusy, setSupportBusy] = useState(false)
   const [supportUnreadCount, setSupportUnreadCount] = useState(0)
@@ -136,7 +138,6 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState('general')
   const [activeHistoryId, setActiveHistoryId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const authTransitionTimerRef = useRef(null)
 
   const loadConversations = useCallback(async () => {
     const items = await apiRequest('/conversations')
@@ -186,17 +187,15 @@ export default function App() {
     return () => { active = false }
   }, [applyAuthenticatedUser, loadConversations])
 
-  useEffect(() => () => {
-    if (authTransitionTimerRef.current) {
-      window.clearTimeout(authTransitionTimerRef.current)
-    }
-  }, [])
-
-  // Notification center state (persisted to localStorage)
+  // Student announcements and their server-backed inbox state.
   const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS)
+  const [announcementModal, setAnnouncementModal] = useState(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifFilter, setNotifFilter] = useState('all') // 'all' | 'unread' | 'campus' | 'academic'
   const notifRef = useRef(null)
+  const announcementModalRef = useRef(null)
+  const announcementModalSeenRef = useRef({ userId: null, ids: new Set() })
+  const announcementModalCloseRef = useRef(null)
 
   // Toast notification system state
   const [toasts, setToasts] = useState([])
@@ -209,6 +208,45 @@ export default function App() {
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, 4200)
   }
+
+  const loadNotifications = useCallback(async () => {
+    if (!userId) {
+      setNotifications([])
+      setAnnouncementModal(null)
+      announcementModalRef.current = null
+      announcementModalSeenRef.current = { userId: null, ids: new Set() }
+      return
+    }
+    try {
+      const data = await apiRequest('/announcements')
+      const items = (data.notifications || []).map((item) => ({
+        ...item,
+        id: String(item._id),
+        unread: Boolean(item.unread),
+        time: new Date(item.publishedAt || item.createdAt).toLocaleString(),
+        tag: item.category,
+      }))
+      setNotifications(items)
+      if (announcementModalSeenRef.current.userId !== userId) {
+        announcementModalSeenRef.current = { userId, ids: new Set() }
+      }
+      const nextAnnouncement = items.find((item) => item.unread && !announcementModalSeenRef.current.ids.has(item.id))
+      if (nextAnnouncement && !announcementModalRef.current) {
+        announcementModalSeenRef.current.ids.add(nextAnnouncement.id)
+        announcementModalRef.current = nextAnnouncement
+        setAnnouncementModal(nextAnnouncement)
+      }
+    } catch (error) {
+      if (error.status !== 401 && error.status !== 403) console.warn('Unable to load announcements:', error.message)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    if (!userId) { setNotifications([]); return undefined }
+    void loadNotifications()
+    const timer = window.setInterval(() => { void loadNotifications() }, 60000)
+    return () => window.clearInterval(timer)
+  }, [userId, loadNotifications])
 
   // Close notifications popover on click outside
   useEffect(() => {
@@ -223,13 +261,40 @@ export default function App() {
     }
   }, [notifOpen])
 
-  const markAsRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    )
+  useEffect(() => {
+    if (!announcementModal) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    announcementModalCloseRef.current?.focus()
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') closeAnnouncementModal()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [announcementModal])
+
+  const markAsRead = async (id) => {
+    const notification = notifications.find((item) => item.id === id)
+    if (!notification?.unread) return
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+    try { await apiRequest(`/announcements/${encodeURIComponent(id)}/read`, { method: 'PATCH', body: JSON.stringify({}) }) }
+    catch (error) {
+      void loadNotifications()
+      showToast({ type: 'warning', title: 'Could not update notification', message: error.message })
+    }
   }
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    try { await apiRequest('/announcements/read-all', { method: 'POST', body: JSON.stringify({}) }) }
+    catch (error) {
+      showToast({ type: 'warning', title: 'Could not update notifications', message: error.message })
+      return
+    }
+    setAnnouncementModal(null)
+    announcementModalRef.current = null
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
     showToast({
       type: 'info',
@@ -238,9 +303,27 @@ export default function App() {
     })
   }
 
-  const deleteNotification = (id, e) => {
+  const closeAnnouncementModal = () => {
+    const announcement = announcementModalRef.current
+    setAnnouncementModal(null)
+    announcementModalRef.current = null
+    if (!announcement) return
+    setNotifications((prev) => prev.map((item) => item.id === announcement.id ? { ...item, unread: false } : item))
+    void apiRequest(`/announcements/${encodeURIComponent(announcement.id)}/read`, { method: 'PATCH', body: JSON.stringify({}) })
+      .catch((error) => {
+        void loadNotifications()
+        showToast({ type: 'warning', title: 'Could not update notification', message: error.message })
+      })
+  }
+
+  const deleteNotification = async (id, e) => {
     if (e) e.stopPropagation()
     setNotifications((prev) => prev.filter((n) => n.id !== id))
+    try { await apiRequest(`/announcements/${encodeURIComponent(id)}/dismiss`, { method: 'PATCH', body: JSON.stringify({}) }) }
+    catch (error) {
+      void loadNotifications()
+      showToast({ type: 'warning', title: 'Could not dismiss notification', message: error.message })
+    }
   }
 
   useEffect(() => {
@@ -266,9 +349,52 @@ export default function App() {
       }
     }
     void refreshSupport()
-    const timer = window.setInterval(refreshSupport, 15000)
+    const timer = window.setInterval(refreshSupport, 20000)
     return () => { active = false; window.clearInterval(timer) }
   }, [userId, supportPanelOpen])
+
+  useEffect(() => {
+    if (!userId || !isStudent) return undefined
+    const refreshConversationList = () => {
+      void loadConversations().catch((error) => console.error('Unable to refresh conversations:', error.message))
+    }
+    const timer = window.setInterval(refreshConversationList, 20000)
+    return () => window.clearInterval(timer)
+  }, [userId, isStudent, loadConversations])
+
+  useEffect(() => {
+    if (!userId || !isStudent) return undefined
+    const socket = createSupportSocket()
+    supportSocketRef.current = socket
+    socket.on('support:updated', ({ conversation }) => {
+      if (!conversation) return
+      setSupportConversation((current) => {
+        if (current && current._id !== conversation._id) return current
+        const previousAdminIds = new Set((current?.messages || []).filter((message) => message.sender === 'admin').map((message) => message.clientMessageId))
+        const newReplies = conversation.messages.filter((message) => message.sender === 'admin' && !previousAdminIds.has(message.clientMessageId)).length
+        if (newReplies && !supportPanelOpenRef.current) setSupportUnreadCount((count) => count + newReplies)
+        return conversation
+      })
+    })
+    socket.connect()
+    return () => {
+      socket.disconnect()
+      supportSocketRef.current = null
+    }
+  }, [userId, isStudent])
+
+  useEffect(() => {
+    const socket = supportSocketRef.current
+    const conversationId = supportConversation?._id
+    if (!socket || !conversationId) return undefined
+    const join = () => socket.emit('support:join', { conversationId })
+    if (socket.connected) join()
+    socket.on('connect', join)
+    return () => {
+      socket.off('connect', join)
+      if (socket.connected) socket.emit('support:leave', { conversationId })
+    }
+  }, [supportConversation?._id])
 
   const submitSupportRequest = async (question, history) => {
     if (!isStudent || !userId) {
@@ -349,7 +475,14 @@ export default function App() {
     } finally { setEndingSupport(false) }
   }
 
-  const clearAllNotifications = () => {
+  const clearAllNotifications = async () => {
+    try { await apiRequest('/announcements/dismiss-all', { method: 'POST', body: JSON.stringify({}) }) }
+    catch (error) {
+      showToast({ type: 'warning', title: 'Could not clear notifications', message: error.message })
+      return
+    }
+    setAnnouncementModal(null)
+    announcementModalRef.current = null
     setNotifications([])
     showToast({
       type: 'info',
@@ -445,17 +578,7 @@ export default function App() {
   }
 
   const navigateAuthPage = (nextView) => {
-    if (authTransitionTimerRef.current) {
-      window.clearTimeout(authTransitionTimerRef.current)
-    }
-
-    setAuthTransitionPhase('exiting')
-    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    authTransitionTimerRef.current = window.setTimeout(() => {
-      setView(nextView)
-      setAuthTransitionPhase('entering')
-      authTransitionTimerRef.current = null
-    }, prefersReducedMotion ? 0 : 180)
+    setView(nextView)
   }
 
   const enterHome = (name = 'Guest', role = 'Guest', course = '') => {
@@ -649,7 +772,7 @@ export default function App() {
 
   if (view === 'login' || view === 'signup') {
     return (
-      <div className={`auth-transition-page theme-${effectiveTheme}${authTransitionPhase ? ` auth-transition-page--${authTransitionPhase}` : ''}`}>
+      <div className={`min-h-dvh w-full bg-white text-slate-900 theme-${effectiveTheme}`}>
         {view === 'login' ? (
           <LoginPage
             onGuest={() => enterHome('Guest', 'Guest')}
@@ -1047,7 +1170,7 @@ export default function App() {
 
                 {/* ── NOTIFICATIONS ── */}
                 {settingsTab === 'notifications' && (<>
-                  <p className="settings-notice">Campus notifications and email digests are not available from the server yet.</p>
+                  <p className="settings-notice">Campus announcements appear in your notification inbox. Email digests are not available yet.</p>
                   <SettingToggle
                     label="Sound effects"
                     description="Play a soft chime when a response finishes"
@@ -1182,7 +1305,7 @@ export default function App() {
               <button
                 type="button"
                 className={`notif-trigger-btn ${notifOpen ? 'active' : ''}`}
-                onClick={() => setNotifOpen(!notifOpen)}
+                onClick={() => { const opening = !notifOpen; setNotifOpen(opening); if (opening) void loadNotifications() }}
                 aria-label="Campus notifications"
                 aria-expanded={notifOpen}
                 title="Notifications"
@@ -1283,6 +1406,15 @@ export default function App() {
                           </div>
                           <div className="notif-item-title">{notif.title}</div>
                           <div className="notif-item-message">{notif.message}</div>
+                          {notif.link && (
+                            <a
+                              href={notif.link}
+                              target={/^https:\/\//i.test(notif.link) ? '_blank' : undefined}
+                              rel={/^https:\/\//i.test(notif.link) ? 'noreferrer' : undefined}
+                              onClick={(event) => { event.stopPropagation(); void markAsRead(notif.id) }}
+                              className="notif-item-link"
+                            >Open link</a>
+                          )}
                           {notif.unread && (
                             <span className="notif-unread-dot" title="Unread" />
                           )}
@@ -1618,6 +1750,49 @@ export default function App() {
             </button>
           )}
         </aside>
+      )}
+
+      {announcementModal && (
+        <div className="announcement-modal-scrim">
+          <section
+            className="announcement-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="announcement-modal-title"
+            aria-describedby="announcement-modal-message"
+          >
+            <div className="announcement-modal-topline">
+              <span className={`notif-tag notif-tag-${announcementModal.category}`}>
+                {announcementModal.category}
+              </span>
+              <button
+                ref={announcementModalCloseRef}
+                type="button"
+                className="announcement-modal-close"
+                onClick={closeAnnouncementModal}
+                aria-label="Close announcement"
+              >×</button>
+            </div>
+            <p className="announcement-modal-kicker">New campus announcement</p>
+            <h2 id="announcement-modal-title">{announcementModal.title}</h2>
+            <p className="announcement-modal-time">{announcementModal.time}</p>
+            <div id="announcement-modal-message" className="announcement-modal-message">
+              {announcementModal.message}
+            </div>
+            <div className="announcement-modal-actions">
+              {announcementModal.link && (
+                <a
+                  className="announcement-modal-link"
+                  href={announcementModal.link}
+                  target={/^https:\/\//i.test(announcementModal.link) ? '_blank' : undefined}
+                  rel={/^https:\/\//i.test(announcementModal.link) ? 'noreferrer' : undefined}
+                  onClick={closeAnnouncementModal}
+                >Open details</a>
+              )}
+              <button type="button" className="announcement-modal-confirm" onClick={closeAnnouncementModal}>Got it</button>
+            </div>
+          </section>
+        </div>
       )}
 
       {/* Floating Toast Notification Stack */}

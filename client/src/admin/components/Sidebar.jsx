@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   BookOpen,
   MessageSquareText,
+  Megaphone,
   X,
 } from 'lucide-react'
 
@@ -9,6 +10,7 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
   { id: 'inquiries', label: 'Live Support', icon: MessageSquareText },
+  { id: 'announcements', label: 'Announcements', icon: Megaphone },
 ]
 
 export const Sidebar = ({

@@ -479,6 +479,18 @@
   text-decoration: none;
 }
 
+.auth-legal-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.auth-submit-gradient-btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .auth-forgot-link:hover {
   text-decoration: underline;
 }
@@ -839,6 +851,24 @@
   transform: translateY(-1px);
 }
 
+.auth-google-button-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 44px;
+  overflow: hidden;
+}
+
+.auth-google-button-slot iframe {
+  max-width: 100%;
+}
+
+.auth-google-loading {
+  color: #6b7280;
+  font-size: 12px;
+}
+
 .auth-guest-icon {
   font-size: 15px;
 }
@@ -1106,7 +1136,8 @@
     flex-direction: column;
     overflow-y: auto;
     overflow-x: hidden;
-    height: auto;
+    height: 100vh;
+    height: 100dvh;
     min-height: 100vh;
     min-height: 100dvh;
   }
@@ -1327,58 +1358,3 @@
     font-size: 11.5px;
   }
 }
-.auth-recovery-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(10, 22, 15, 0.62);
-}
-.auth-recovery-card {
-  position: relative;
-  width: min(100%, 440px);
-  max-height: min(86vh, 720px);
-  overflow-y: auto;
-  padding: 34px;
-  border: 1px solid rgba(42, 75, 48, 0.16);
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
-}
-.auth-recovery-card h2 { margin: 0 0 14px; color: #193b27; }
-.auth-recovery-card form { display: flex; flex-direction: column; gap: 12px; }
-.auth-recovery-card form p { margin: 0 0 8px; color: #647067; font-size: 14px; line-height: 1.55; }
-.auth-recovery-input {
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 13px;
-  border: 1px solid #d6ddd7;
-  border-radius: 10px;
-  color: #193b27;
-  background: #fff;
-  font: inherit;
-}
-.auth-recovery-close {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  border: 0;
-  color: #66736a;
-  background: transparent;
-  font-size: 25px;
-  cursor: pointer;
-}
-.auth-recovery-text-button {
-  border: 0;
-  padding: 8px 0;
-  color: #286044;
-  background: transparent;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.auth-form-notice { margin: 0; color: #286044; font-size: 13px; line-height: 1.5; }
-.auth-verification-title { margin: 0; color: #193b27; font-size: 20px; }

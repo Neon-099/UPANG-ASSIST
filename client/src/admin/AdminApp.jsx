@@ -1,10 +1,11 @@
 ﻿import { useCallback, useEffect, useState } from 'react'
 import { Activity } from 'lucide-react'
 import { apiRequest } from '../api'
-import upangLogo from './assets/upang logo.png'
+import { createSupportSocket } from '../supportSocket'
 import { DashboardView } from './components/DashboardView'
 import { KnowledgeBaseView } from './components/KnowledgeBaseView'
 import SupportInquiriesView from './components/SupportInquiriesView'
+import AnnouncementsView from './components/AnnouncementsView'
 import { Navbar } from './components/Navbar'
 import { Sidebar } from './components/Sidebar'
 import './admin.css'
@@ -52,7 +53,9 @@ function fromSupportConversation(conversation) {
     conversationId: String(conversation._id),
     studentName: conversation.ownerName || 'Student',
     studentId: conversation.ownerEmail || '',
-    query: conversation.question || '',
+    query: conversation.currentQuestion || conversation.question || '',
+    originalQuestion: conversation.question || '',
+    currentQuestion: conversation.currentQuestion || conversation.question || '',
     responseSnippet: `${conversation.messages?.length || 0} messages`,
     category: 'General Campus Info',
     timestamp: Number.isNaN(timestamp.getTime()) ? '' : timestamp.toLocaleString(),
@@ -63,50 +66,6 @@ function fromSupportConversation(conversation) {
   }
 }
 
-function AdminSignIn({ onSignedIn }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const submit = async (event) => {
-    event.preventDefault()
-    setBusy(true)
-    setError('')
-    try {
-      const data = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      })
-      if (data.user?.role !== 'admin') {
-        await apiRequest('/auth/logout', { method: 'POST' }).catch(() => {})
-        throw new Error('This account does not have administrator access.')
-      }
-      onSignedIn(data.user)
-    } catch (requestError) {
-      setError(requestError.message || 'Unable to sign in.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <main className="admin-signin-shell">
-      <form className="admin-signin-card" onSubmit={submit}>
-        <img src={upangLogo} alt="PHINMA UPang" className="admin-signin-mark" />
-        <p className="admin-kicker">PHINMA UNIVERSITY OF PANGASINAN</p>
-        <h1>Administrator sign in</h1>
-        <p className="admin-subtitle">Sign in with your verified PHINMA account to manage the assistant knowledge base.</p>
-        <label>Email address<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-        <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-        {error && <p className="admin-error" role="alert">{error}</p>}
-        <button className="admin-primary-button" disabled={busy}>{busy ? 'Signing inâ€¦' : 'Sign in'}</button>
-        <a href="/" className="admin-back-link">Return to UPang Assist</a>
-      </form>
-    </main>
-  )
-}
-
 export default function AdminApp() {
   const [currentUser, setCurrentUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -114,6 +73,8 @@ export default function AdminApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [knowledgeItems, setKnowledgeItems] = useState([])
   const [supportInquiries, setSupportInquiries] = useState([])
+  const [announcements, setAnnouncements] = useState([])
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(false)
   const [supportError, setSupportError] = useState('')
   const [supportLoading, setSupportLoading] = useState(false)
   const [isAddKnowledgeOpen, setIsAddKnowledgeOpen] = useState(false)
@@ -129,8 +90,8 @@ export default function AdminApp() {
     }
   }, [])
 
-  const loadKnowledge = useCallback(async () => {
-    setLoadingKnowledge(true)
+  const loadKnowledge = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoadingKnowledge(true)
     try {
       const entries = await apiRequest('/admin/knowledge')
       setKnowledgeItems(entries.map(fromServerEntry))
@@ -138,7 +99,7 @@ export default function AdminApp() {
     } catch (requestError) {
       setError(requestError.message || 'Unable to load chatbot knowledge.')
     } finally {
-      setLoadingKnowledge(false)
+      if (!silent) setLoadingKnowledge(false)
     }
   }, [])
 
@@ -149,10 +110,12 @@ export default function AdminApp() {
         if (active && data.user?.role === 'admin') {
           setCurrentUser(data.user)
           loadKnowledge()
+        } else if (active) {
+          window.location.replace('/')
         }
       })
-      .catch((requestError) => {
-        if (active && requestError.message !== 'Authentication required') setError(requestError.message)
+      .catch(() => {
+        if (active) window.location.replace('/')
       })
       .finally(() => { if (active) setAuthLoading(false) })
     return () => { active = false }
@@ -164,13 +127,53 @@ export default function AdminApp() {
     setSupportError('')
   }, [])
 
+  const loadAnnouncements = useCallback(async () => {
+    setLoadingAnnouncements(true)
+    try {
+      const data = await apiRequest('/announcements/admin')
+      setAnnouncements(data.announcements || [])
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to load announcements.')
+    } finally { setLoadingAnnouncements(false) }
+  }, [])
+
+  const saveAnnouncement = async (id, announcement) => {
+    setError('')
+    try {
+      await apiRequest(`/announcements/admin${id ? `/${encodeURIComponent(id)}` : ''}`, {
+        method: id ? 'PATCH' : 'POST',
+        body: JSON.stringify(announcement),
+      })
+      await loadAnnouncements()
+      return true
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to save announcement.')
+      return false
+    }
+  }
+
+  const deleteAnnouncements = async (ids) => {
+    setError('')
+    try {
+      await apiRequest('/announcements/admin/bulk', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids }),
+      })
+      await loadAnnouncements()
+      return true
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to delete announcements.')
+      return false
+    }
+  }
+
   useEffect(() => {
     if (!currentUser) return undefined
     let active = true
     const refresh = async () => {
       try {
         if (active) setSupportLoading(true)
-        await loadSupportInquiries()
+        await Promise.all([loadSupportInquiries(), loadKnowledge({ silent: true })])
       } catch (requestError) {
         if (active) setSupportError(requestError.message || 'Unable to load support conversations.')
       } finally {
@@ -178,8 +181,18 @@ export default function AdminApp() {
       }
     }
     void refresh()
-    const timer = window.setInterval(refresh, 15000)
+    const timer = window.setInterval(refresh, 20000)
     return () => { active = false; window.clearInterval(timer) }
+  }, [currentUser, loadSupportInquiries, loadKnowledge])
+
+  useEffect(() => {
+    if (!currentUser) return undefined
+    const socket = createSupportSocket()
+    const refreshQueue = () => { void loadSupportInquiries().catch((requestError) => setSupportError(requestError.message || 'Unable to refresh support conversations.')) }
+    socket.on('support:queue-updated', refreshQueue)
+    socket.on('connect', refreshQueue)
+    socket.connect()
+    return () => socket.disconnect()
   }, [currentUser, loadSupportInquiries])
 
   const saveKnowledge = async (method, id, entry) => {
@@ -221,22 +234,24 @@ export default function AdminApp() {
     setCurrentUser(null)
     setKnowledgeItems([])
     setSupportInquiries([])
+    setAnnouncements([])
   }
 
   if (authLoading) return <main className="admin-loading"><Activity className="animate-spin" /><span>Checking administrator accessâ€¦</span></main>
-  if (!currentUser) return <AdminSignIn onSignedIn={setCurrentUser} />
+  if (!currentUser) return <main className="admin-loading"><Activity className="animate-spin" /><span>Redirecting to the main sign-in page…</span></main>
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-white">
       <Navbar userName={currentUser.name || currentUser.email} inquiriesCount={supportInquiries.filter((item) => !['Resolved', 'Ended by Student'].includes(item.status)).length} onToggleSidebar={() => setSidebarOpen((open) => !open)} onNavigateTab={setCurrentTab} onLogout={logout} />
       <div className="flex min-w-0 flex-1">
-        <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} isOpen={sidebarOpen} onCloseMobile={() => setSidebarOpen(false)} />
+        <Sidebar currentTab={currentTab} onSelectTab={(tab) => { setCurrentTab(tab); if (tab === 'announcements') void loadAnnouncements() }} isOpen={sidebarOpen} onCloseMobile={() => setSidebarOpen(false)} />
         <main className="admin-content min-w-0 w-full max-w-7xl mx-auto flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
           {error && <div className="admin-api-error" role="alert">{error}<button type="button" onClick={() => setError('')} aria-label="Dismiss">Ã—</button></div>}
           {loadingKnowledge && <p className="admin-data-status" role="status">Loading the server knowledge baseâ€¦</p>}
           {currentTab === 'dashboard' && <DashboardView inquiries={supportInquiries} knowledgeItems={knowledgeItems} onNavigateTab={setCurrentTab} onOpenAddKnowledge={() => { setCurrentTab('knowledge'); setIsAddKnowledgeOpen(true) }} />}
           {currentTab === 'knowledge' && <KnowledgeBaseView items={knowledgeItems} onAddItem={(item) => saveKnowledge('POST', null, item)} onUpdateItem={(id, item) => saveKnowledge('PATCH', id, { ...knowledgeItems.find((entry) => entry.id === id), ...item })} onDeleteItem={deleteKnowledge} isAddModalOpen={isAddKnowledgeOpen} setIsAddModalOpen={setIsAddKnowledgeOpen} />}
           {currentTab === 'inquiries' && <SupportInquiriesView inquiries={supportInquiries} adminId={String(currentUser.id || currentUser._id)} loading={supportLoading} error={supportError} onAccept={(id) => updateSupportConversation(id, 'accept')} onReply={(id, text, clientMessageId) => updateSupportConversation(id, 'reply', { text, clientMessageId })} onResolve={(id) => updateSupportConversation(id, 'resolve')} />}
+          {currentTab === 'announcements' && <AnnouncementsView announcements={announcements} loading={loadingAnnouncements} onSave={saveAnnouncement} onDeleteMany={deleteAnnouncements} />}
         </main>
       </div>
     </div>

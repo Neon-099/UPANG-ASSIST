@@ -14,6 +14,7 @@ const supportConversationSchema = new mongoose.Schema({
   ownerName: { type: String, required: true, trim: true, maxlength: 120 },
   ownerEmail: { type: String, required: true, trim: true, lowercase: true, maxlength: 254 },
   question: { type: String, required: true, trim: true, maxlength: 2000 },
+  currentQuestion: { type: String, trim: true, maxlength: 2000, default: "" },
   status: {
     type: String,
     enum: ["waiting_for_support", "assigned", "live_chat", "resolved", "ended_by_student"],

@@ -75,7 +75,7 @@ export default function SupportInquiriesView({ inquiries, adminId, loading, erro
       <div className="support-admin-table-wrap">
         <div className="support-admin-table-scroll">
           <table className="support-admin-table">
-            <thead><tr><th>Student</th><th>Original question</th><th>Status</th><th>Last activity</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Student</th><th>Current question</th><th>Status</th><th>Last activity</th><th>Actions</th></tr></thead>
             <tbody>{filtered.map((item) => (
               <tr key={item.conversationId}>
                 <td><strong>{item.studentName}</strong><small>{item.studentId}</small></td>
@@ -95,7 +95,8 @@ export default function SupportInquiriesView({ inquiries, adminId, loading, erro
           <section className="support-admin-dialog" role="dialog" aria-modal="true" aria-labelledby="support-dialog-title">
             <header className="support-admin-dialog-header"><div><h2 id="support-dialog-title">Support conversation</h2><p>{selected.studentName} · {selected.studentId}</p></div><button type="button" onClick={closeDialog} aria-label="Close conversation"><X /></button></header>
             <div className="support-admin-transcript">
-              <div className="support-original-question"><span>Original question</span><p>{selected.query}</p></div>
+              <div className="support-original-question"><span>Current question</span><p>{selected.currentQuestion || selected.query}</p></div>
+              <div className="support-original-question"><span>Original question</span><p>{selected.originalQuestion || selected.query}</p></div>
               {selected.messages.map((message) => {
                 const isAdmin = message.sender === 'admin'
                 const time = message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''

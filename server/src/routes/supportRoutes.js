@@ -15,6 +15,13 @@ function addMessage(conversation, message) {
   conversation.lastMessageAt = message.createdAt || new Date();
 }
 
+function notifySupportUpdate(req, conversation) {
+  const io = req.app.get("io");
+  if (!io) return;
+  io.to(`support:${conversation._id}`).emit("support:updated", { conversation: conversation.toObject() });
+  io.to("support:admins").emit("support:queue-updated", { conversationId: String(conversation._id) });
+}
+
 function validateConversationId(req, res) {
   if (mongoose.isValidObjectId(req.params.id)) return true;
   res.status(400).json({ error: "Invalid support conversation ID" });
@@ -51,24 +58,36 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   try {
-    const conversation = new SupportConversation({
-      owner: req.user._id,
-      ownerName: req.user.name || req.user.email,
-      ownerEmail: req.user.email,
-      question,
-      messages: history.map((message, index) => ({
+    let conversation = await SupportConversation.findOne({ owner: req.user._id, status: { $in: ["waiting_for_support", "assigned", "live_chat"] } }).sort({ lastMessageAt: -1 });
+    const created = !conversation;
+    const mappedHistory = history.map((message, index) => ({
         clientMessageId: typeof message.id === "string" && message.id.trim() ? message.id.trim().slice(0, 120) : `history-${index}-${Date.now()}`,
         sender: message.sender === "user" ? "student" : "assistant",
         senderId: message.sender === "user" ? req.user._id : null,
         senderName: message.sender === "user" ? (req.user.name || "Student") : "UPangAssist",
         text: message.text.trim()
-      }))
+      }));
+    if (!conversation) conversation = new SupportConversation({
+      owner: req.user._id,
+      ownerName: req.user.name || req.user.email,
+      ownerEmail: req.user.email,
+      question,
+      currentQuestion: question,
+      messages: mappedHistory
     });
+    else {
+      conversation.currentQuestion = question;
+      const knownIds = new Set(conversation.messages.map((message) => message.clientMessageId));
+      for (const message of mappedHistory) if (!knownIds.has(message.clientMessageId)) { addMessage(conversation, message); knownIds.add(message.clientMessageId); }
+      conversation.lastMessageAt = new Date();
+    }
     await conversation.save();
-    return res.status(201).json({
+    notifySupportUpdate(req, conversation);
+    return res.status(created ? 201 : 200).json({
       conversation,
       administratorAvailable: false,
-      message: "Your inquiry has been sent. A support administrator will reply here when available."
+      reused: !created,
+      message: created ? "Your inquiry has been sent. A support administrator will reply here when available." : "Your question was added to your active support conversation."
     });
   } catch (error) {
     console.error("Support request creation failed:", error.message);
@@ -119,7 +138,9 @@ router.post("/:id/messages", requireAuth, async (req, res) => {
       senderName: req.user.name || "Student",
       text
     });
+    conversation.currentQuestion = text;
     await conversation.save();
+    notifySupportUpdate(req, conversation);
     return res.json({ conversation });
   } catch (error) {
     console.error("Student support message failed:", error.message);
@@ -136,6 +157,7 @@ router.post("/:id/end", requireAuth, async (req, res) => {
       conversation.status = "ended_by_student";
       conversation.lastMessageAt = new Date();
       await conversation.save();
+      notifySupportUpdate(req, conversation);
     }
     return res.json({ conversation });
   } catch (error) {
@@ -158,6 +180,7 @@ router.post("/:id/accept", ...adminOnly, async (req, res) => {
     conversation.assignedTo = req.user._id;
     conversation.status = "assigned";
     await conversation.save();
+    notifySupportUpdate(req, conversation);
     return res.json({ conversation });
   } catch (error) {
     console.error("Admin support acceptance failed:", error.message);
@@ -187,6 +210,7 @@ router.post("/:id/reply", ...adminOnly, async (req, res) => {
     });
     conversation.status = "live_chat";
     await conversation.save();
+    notifySupportUpdate(req, conversation);
     return res.json({ conversation });
   } catch (error) {
     console.error("Admin support reply failed:", error.message);
@@ -202,6 +226,7 @@ router.post("/:id/resolve", ...adminOnly, async (req, res) => {
     conversation.status = "resolved";
     conversation.lastMessageAt = new Date();
     await conversation.save();
+    notifySupportUpdate(req, conversation);
     return res.json({ conversation });
   } catch (error) {
     console.error("Admin support resolution failed:", error.message);
