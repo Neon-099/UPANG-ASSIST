@@ -1,0 +1,79 @@
+/* Match the standalone admin portal's background and narrow-screen header. */
+body.admin-mode {
+  min-height: 100vh;
+  color: #fff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background:
+    radial-gradient(ellipse at 8% 12%, rgba(240, 180, 69, 0.14), transparent 30%),
+    radial-gradient(ellipse at 90% 85%, rgba(30, 82, 58, 0.4), transparent 32%),
+    radial-gradient(ellipse at 55% 50%, rgba(20, 50, 36, 0.3), transparent 55%),
+    linear-gradient(140deg, #08170f 0%, #112a1a 35%, #1c3f2d 65%, #0d2017 100%);
+  background-attachment: fixed;
+}
+
+body.admin-mode #root {
+  min-height: 100vh;
+  color: #fff;
+  background: transparent;
+}
+
+.admin-content {
+  padding: 1rem;
+}
+
+.admin-view-stack > * + * {
+  margin-top: 1.5rem;
+}
+
+.portal-sidebar {
+  max-width: calc(100vw - 1rem);
+  height: 100dvh;
+}
+
+.admin-dashboard-table {
+  min-width: 620px;
+}
+
+@media (min-width: 768px) {
+  .admin-content {
+    padding: 1.5rem;
+  }
+
+  .portal-sidebar {
+    height: calc(100dvh - 4rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-content {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 399px) {
+  .admin-navbar-wordmark {
+    display: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .admin-navbar {
+    height: auto;
+    min-height: 4rem;
+    flex-wrap: wrap;
+    gap: 0.25rem 0;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .admin-navbar-brand {
+    flex: 1 1 auto;
+  }
+
+  .admin-navbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 0.25rem;
+  }
+}

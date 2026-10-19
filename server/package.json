@@ -8,6 +8,8 @@
     "dev": "node --watch src/server.js",
     "verify:email": "node src/verifyRecoveryEmail.js",
     "knowledge:sync-atlas": "node src/syncLocalKnowledgeToAtlas.js",
+    "knowledge:seed-public": "node src/seedUniversityPublicKnowledge.js",
+    "knowledge:seed-public-programs": "node src/seedUniversityProgramsPublicKnowledge.js",
     "admin:create": "node src/createAdmin.js"
   },
   "dependencies": {

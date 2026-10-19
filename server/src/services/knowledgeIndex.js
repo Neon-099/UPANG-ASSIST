@@ -33,7 +33,8 @@ function getSearchWords(value) {
 }
 
 function buildSearchKeywords(entry) {
-  return [...new Set(getSearchWords(`${entry.category || ""} ${entry.question || ""} ${entry.answer || ""}`))];
+  const explicitKeywords = Array.isArray(entry.keywords) ? entry.keywords.join(" ") : "";
+  return [...new Set(getSearchWords(`${entry.category || ""} ${entry.question || ""} ${entry.answer || ""} ${explicitKeywords}`))];
 }
 
 function getKeywordRelevance(question, entry) {

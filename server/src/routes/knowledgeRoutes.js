@@ -15,19 +15,33 @@ function validateEntry(body = {}) {
   }
   if (!entry.category || !entry.question || !entry.answer) return { error: "Category, question, and answer are required" };
   if (entry.category.length > 100 || entry.question.length > 500 || entry.answer.length > 10000) return { error: "One or more fields exceed their length limit" };
+  entry.visibility = body.visibility === undefined ? "student" : body.visibility;
+  if (!["public", "student"].includes(entry.visibility)) return { error: "Visibility must be public or student" };
+  entry.keywords = Array.isArray(body.keywords)
+    ? [...new Set(body.keywords.filter((value) => typeof value === "string").map((value) => value.trim().toLowerCase()).filter(Boolean))].slice(0, 50)
+    : [];
+  if (entry.keywords.some((keyword) => keyword.length > 100)) return { error: "Keywords must be at most 100 characters each" };
+  entry.followUps = Array.isArray(body.followUps)
+    ? body.followUps.filter((value) => typeof value === "string").map((value) => value.trim()).filter(Boolean).slice(0, 20)
+    : [];
+  if (entry.followUps.some((followUp) => followUp.length > 500)) return { error: "Follow-up prompts must be at most 500 characters each" };
   entry.lastUpdated = new Date().toISOString().slice(0, 10);
   return { entry };
 }
 
 function toPublicEntry(document) {
   const entry = document.toObject ? document.toObject() : { ...document };
+  entry.keywords = entry.searchKeywords || [];
   delete entry.searchKeywords;
   delete entry.embedding;
   return entry;
 }
 
 router.get("/", async (_req, res) => {
-  try { return res.json(await KnowledgeEntry.find().sort({ category: 1, question: 1 }).lean()); }
+  try {
+    const entries = await KnowledgeEntry.find().select("+searchKeywords").sort({ category: 1, question: 1 }).lean();
+    return res.json(entries.map((entry) => toPublicEntry({ ...entry, visibility: entry.visibility || "student" })));
+  }
   catch { return res.status(500).json({ error: "Unable to load chatbot knowledge" }); }
 });
 
@@ -52,7 +66,7 @@ router.patch("/:id", async (req, res) => {
       req.params.id,
       { $set: { ...entry, ...searchFields } },
       { new: true, runValidators: true }
-    );
+    ).select("+searchKeywords");
     if (!updated) return res.status(404).json({ error: "Knowledge entry not found" });
     await refreshKnowledgeBase({ force: true });
     return res.json(toPublicEntry(updated));

@@ -442,13 +442,16 @@ async function login(req, res) {
       return res.status(400).json({ error: "Password must not contain spaces." });
     }
 
-    const user = await User.findOne({ email }).select("+passwordHash _id name email course role status");
+    const user = await User.findOne({ email }).select("+passwordHash _id name email emailVerifiedAt course role status");
     if (!user || user.status !== "active" || typeof user.passwordHash !== "string" || !user.passwordHash.startsWith("$argon2")) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
     const passwordMatches = await argon2.verify(user.passwordHash, password);
     if (!passwordMatches) {
       return res.status(401).json({ error: "Invalid email or password" });
+    }
+    if (!user.emailVerifiedAt) {
+      return res.status(403).json({ error: "Verify your school email before signing in." });
     }
 
     user.lastLoginAt = new Date();

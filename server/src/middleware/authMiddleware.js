@@ -24,7 +24,7 @@ async function authenticate(req, res, next, optional = false) {
 
 
     const user = await User.findById(payload.sub).select(
-      "_id name email course role status"
+      "_id name email emailVerifiedAt course role status"
     );
 
     if (!user) {
@@ -55,6 +55,13 @@ async function authenticate(req, res, next, optional = false) {
       });
     }
 
+    if (!user.emailVerifiedAt) {
+      if (optional) {
+        req.user = null;
+        return next();
+      }
+      return res.status(403).json({ error: "Verified school email required" });
+    }
 
     req.user = user;
     next();

@@ -1,0 +1,608 @@
+﻿[
+    {
+        "category":  "Academic Programs",
+        "question":  "What programs are available at PHINMA University of Pangasinan?",
+        "answer":  "PHINMA University of Pangasinan offers Senior High School strands, undergraduate college programs, and graduate programs. Its college programs cover areas including management and accountancy, education and liberal arts, criminal justice education, engineering and architecture, allied health sciences, and information technology."
+    },
+    {
+        "category":  "Academics",
+        "question":  "Does PHINMA University of Pangasinan offer Basic Education?",
+        "answer":  "Yes. PHINMA University of Pangasinan has a Basic Education Unit that offers Senior High School at the Dagupan Campus."
+    },
+    {
+        "category":  "Basic Education",
+        "question":  "What grade levels are offered in Senior High School at PHINMA University of Pangasinan?",
+        "answer":  "PHINMA University of Pangasinan offers Grades 11 and 12 at its Dagupan Campus."
+    },
+    {
+        "category":  "Senior High School",
+        "question":  "What is the ABM strand at PHINMA University of Pangasinan?",
+        "answer":  "ABM stands for Accountancy and Business Management and is one of the Senior High School strands listed by PHINMA University of Pangasinan."
+    },
+    {
+        "category":  "Senior High School",
+        "question":  "What is the HUMSS strand at PHINMA University of Pangasinan?",
+        "answer":  "HUMSS stands for Humanities and Social Sciences and is one of the Senior High School strands offered by PHINMA University of Pangasinan."
+    },
+    {
+        "category":  "Senior High School",
+        "question":  "What is the STEM strand at PHINMA University of Pangasinan?",
+        "answer":  "STEM stands for Science, Technology, Engineering and Mathematics and is one of the Senior High School strands offered by PHINMA University of Pangasinan."
+    },
+    {
+        "category":  "Senior High School",
+        "question":  "What is the GAS strand at PHINMA University of Pangasinan?",
+        "answer":  "GAS stands for General Academics and is one of the Senior High School strands listed by PHINMA University of Pangasinan."
+    },
+    {
+        "category":  "Senior High School",
+        "question":  "What is the TVL strand at PHINMA University of Pangasinan?",
+        "answer":  "TVL stands for Technical-Vocational-Livelihood and is one of the Senior High School tracks listed by PHINMA University of Pangasinan."
+    },
+    {
+        "category":  "Senior High School",
+        "question":  "What Academic Pathways are available at PHINMA University of Pangasinan?",
+        "answer":  "PHINMA University of Pangasinan lists Academic Pathways to Business, Social Sciences, Engineering, and HealthCare."
+    },
+    {
+        "category":  "Senior High School",
+        "question":  "What TechPro programs are listed by PHINMA University of Pangasinan?",
+        "answer":  "The university lists TechPro-Information Communication Technology (ICT) and TechPro-Hospitality and Tourism Management (HTM)."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Accountancy?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Accountancy through the College of Management and Accountancy."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the BS Accountancy program at PHINMA University of Pangasinan?",
+        "answer":  "The Bachelor of Science in Accountancy is described by PHINMA University of Pangasinan as a four-year course."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the BS Accountancy program at PHINMA University of Pangasinan prepare students for?",
+        "answer":  "The BS Accountancy program prepares students for professional careers in accountancy, particularly public accounting, while developing technical knowledge, skills, professional judgment, integrity, independence, and skepticism."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Management Accounting?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Management Accounting."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does BS Management Accounting focus on at PHINMA University of Pangasinan?",
+        "answer":  "The program emphasizes technical knowledge, skills, and values related to management accounting, including accounting principles, financial analysis, cost management, and strategic decision-making."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Accounting Technology?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Accounting Technology."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the BS Accounting Technology program focus on?",
+        "answer":  "The program focuses on technical expertise and skills in accounting management, including accounting principles, financial analysis, cost management, and strategic decision-making."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Hospitality Management?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Hospitality Management."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What skills are taught in Hospitality Management at PHINMA University of Pangasinan?",
+        "answer":  "The program develops skills in housekeeping, front office, food and beverage services, culinary, events planning, and cruise line operations."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Tourism Management?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Tourism Management."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What areas are covered by the Tourism Management program?",
+        "answer":  "The program develops skills in front office operations, events planning, cruise line operations, and travel and tours."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Business Administration?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Business Administration."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What specializations are listed for BS Business Administration at PHINMA University of Pangasinan?",
+        "answer":  "The university lists Marketing Management and Financial Management as BS Business Administration specializations."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What skills does the BS Business Administration program develop?",
+        "answer":  "The program develops skills including financial analysis, business administration, project management, product presentation, research, feasibility studies, communication, critical thinking, problem-solving, resourcefulness, creativity, discipline, and teamwork."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Political Science?",
+        "answer":  "Yes. The university offers a Bachelor of Arts in Political Science."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Political Science program at PHINMA University of Pangasinan cover?",
+        "answer":  "The program covers political systems, policy analysis, global affairs, critical thinking, research, and effective communication."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Elementary Education?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Elementary Education."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the Elementary Education program?",
+        "answer":  "The Bachelor of Science in Elementary Education is described as a four-year degree program."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Secondary Education?",
+        "answer":  "Yes. The university offers a Bachelor of Secondary Education."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the Secondary Education program?",
+        "answer":  "The Bachelor of Secondary Education is described as a four-year degree program."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What majors are available under Secondary Education?",
+        "answer":  "The university lists majors in English, Math, Science, and Social Studies."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Criminology?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Criminology."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the BS Criminology program?",
+        "answer":  "The Bachelor of Science in Criminology is described as a four-year course."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What areas does the Criminology program cover?",
+        "answer":  "The program covers forensic science, criminal jurisprudence, law enforcement, criminal investigation, and correctional administration."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Architecture?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Architecture."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Architecture program at PHINMA University of Pangasinan focus on?",
+        "answer":  "The program combines architectural theory, history, technical expertise, studio-based learning, hands-on design projects, and real-world applications."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Computer Engineering?",
+        "answer":  "Yes. The Dagupan Campus offers a Bachelor of Science in Computer Engineering."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Computer Engineering program cover?",
+        "answer":  "The program covers hardware and software aspects of computing systems, including digital systems, computer architecture, programming, and electronics."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Civil Engineering?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Civil Engineering."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the Civil Engineering program?",
+        "answer":  "The Bachelor of Science in Civil Engineering is described as a four-year course."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Civil Engineering program prepare students for?",
+        "answer":  "The program provides knowledge, skills, and training for designing, constructing, and maintaining buildings, public infrastructure, and facilities."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Electrical Engineering?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Electrical Engineering."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the Electrical Engineering program?",
+        "answer":  "The Bachelor of Science in Electrical Engineering is described as a five-year degree program."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does Electrical Engineering at PHINMA University of Pangasinan focus on?",
+        "answer":  "The program focuses on conceptualizing, developing, and designing the safe, economical, and ethical utilization of electrical energy, including electrical circuitry, digital systems, equipment, and machinery control."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Mechanical Engineering?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Mechanical Engineering."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does Mechanical Engineering at PHINMA University of Pangasinan cover?",
+        "answer":  "The program covers mechanical systems, machinery design, thermodynamics, fluid mechanics, materials science, and the safe and cost-effective use of energy in mechanical processes."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Nursing?",
+        "answer":  "Yes. The Dagupan Campus offers a Bachelor of Science in Nursing."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the Nursing program at PHINMA University of Pangasinan?",
+        "answer":  "The Bachelor of Science in Nursing is described as a four-year course."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Nursing program include?",
+        "answer":  "The program includes nursing concepts, Related Learning Experiences, simulated clinical activities, active learning, and an intensive nursing practicum."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Pharmacy?",
+        "answer":  "Yes. The university offers a Bachelor of Science in Pharmacy."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the Pharmacy program?",
+        "answer":  "The Bachelor of Science in Pharmacy is described as a four-year course."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Pharmacy program cover?",
+        "answer":  "The program covers pharmaceutical chemistry, pharmaceutics, and life sciences and includes an internship in CHED-accredited affiliated establishments during the fourth year."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Medical Laboratory Science?",
+        "answer":  "Yes. The university offers Bachelor of Science in Medical Laboratory Science at its Dagupan and Urdaneta campuses."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "How long is the Medical Laboratory Science program?",
+        "answer":  "The Bachelor of Science in Medical Laboratory Science is described as a four-year program."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What subjects or areas are covered by Medical Laboratory Science?",
+        "answer":  "The program covers Clinical Chemistry, Hematology, Microbiology, Immunohematology, Immunology and Serology, Urinalysis, Clinical Microscopy, Parasitology, Cytology, and Histopathology."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Psychology?",
+        "answer":  "Yes. The Dagupan Campus offers a Bachelor of Science in Psychology."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Psychology program focus on?",
+        "answer":  "The program focuses on human behavior and mental processes, psychological theories, research methods, practical skills, critical thinking, ethical reasoning, and effective communication."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Information Technology?",
+        "answer":  "Yes. The Dagupan Campus offers a Bachelor of Science in Information Technology."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What areas does the BS Information Technology program cover?",
+        "answer":  "The BS Information Technology program covers emerging industry areas including cloud computing and applications, analytics and data science, artificial intelligence, and the Internet of Things."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Computer Science?",
+        "answer":  "Yes. The university lists a Bachelor of Science in Computer Science under Other Courses."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Computer Science program at PHINMA University of Pangasinan cover?",
+        "answer":  "The program covers areas such as algorithms, programming, and artificial intelligence and uses theoretical learning and hands-on projects to develop problem-solving skills."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer English Language?",
+        "answer":  "Yes. The university lists a Bachelor of Arts in English Language under Other Courses."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the AB English Language program focus on?",
+        "answer":  "The program develops language proficiency, literature comprehension, critical analysis, creative writing, and analytical writing skills."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "Does PHINMA University of Pangasinan offer Entrepreneurship?",
+        "answer":  "Yes. The Urdaneta Campus offers a Bachelor of Science in Entrepreneurship."
+    },
+    {
+        "category":  "Academic Programs",
+        "question":  "What does the Entrepreneurship program cover?",
+        "answer":  "The program covers business planning, financial management, marketing, innovation, real-world projects, opportunity identification, sustainable business models, and entrepreneurship."
+    },
+    {
+        "category":  "Campus Programs",
+        "question":  "Which programs are offered at the Urdaneta Campus?",
+        "answer":  "The Urdaneta Campus lists programs including Medical Laboratory Science, Accountancy, Accounting Technology, Tourism Management, Entrepreneurship, Criminology, Architecture, Civil Engineering, Computer Science, and English Language."
+    },
+    {
+        "category":  "Campus Programs",
+        "question":  "Which programs are offered at the Dagupan Campus?",
+        "answer":  "The Dagupan Campus lists programs across Management and Accountancy, Education and Liberal Arts, Criminal Justice Education, Engineering and Architecture, Allied Health Sciences, and Information Technology, as well as Senior High School."
+    },
+    {
+        "category":  "Graduate School",
+        "question":  "Does PHINMA University of Pangasinan offer graduate education?",
+        "answer":  "Yes. PHINMA University of Pangasinan lists graduate programs including Master in Education major in Educational Leadership, Master in Business Administration, Master of Science in Management Engineering, and College of Law."
+    },
+    {
+        "category":  "Graduate School",
+        "question":  "Does PHINMA University of Pangasinan offer a Master in Education?",
+        "answer":  "Yes. The university lists a Master in Education major in Educational Leadership."
+    },
+    {
+        "category":  "Graduate School",
+        "question":  "Does PHINMA University of Pangasinan offer an MBA?",
+        "answer":  "Yes. The university lists a Master in Business Administration program."
+    },
+    {
+        "category":  "Graduate School",
+        "question":  "Does PHINMA University of Pangasinan offer a Master of Science in Management Engineering?",
+        "answer":  "Yes. The university lists a Master of Science in Management Engineering program."
+    },
+    {
+        "category":  "Graduate School",
+        "question":  "Does PHINMA University of Pangasinan have a College of Law?",
+        "answer":  "Yes. The university lists College of Law under its graduate-school offerings."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student councils are available at PHINMA University of Pangasinan?",
+        "answer":  "The university lists the Supreme Student Council as its Mother Council and several Local Student Councils, including the Supreme Student Government and college-based student councils."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What is the Supreme Student Council at PHINMA University of Pangasinan?",
+        "answer":  "The Supreme Student Council is listed as the Mother Council of PHINMA University of Pangasinan."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "Does PHINMA University of Pangasinan have a student newspaper?",
+        "answer":  "Yes. The Student Herald is listed among the university-wide organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "Does PHINMA University of Pangasinan have a dance organization?",
+        "answer":  "Yes. The University of Pangasinan Dance Company is listed among the university-wide organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "Does PHINMA University of Pangasinan have a Campus Youth Ministry?",
+        "answer":  "Yes. Campus Youth Ministry is listed among the university-wide organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "Does PHINMA University of Pangasinan have a Peer Facilitator organization?",
+        "answer":  "Yes. The Peer Facilitator\u0027s Circle is listed among the university-wide organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "Does PHINMA University of Pangasinan have an organization for scholars?",
+        "answer":  "Yes. The League of Presidential Scholars is listed among the university-wide organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for nursing students?",
+        "answer":  "The University of Pangasinan College of Nursing Student Organization is listed among the registered student organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for pharmacy students?",
+        "answer":  "The UPang Pharmacy Students Organization is listed among the registered student organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for psychology students?",
+        "answer":  "The UPang Psychology Students\u0027 Society is listed among the registered student organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for medical laboratory science students?",
+        "answer":  "The UPang Medical Technologists Student Association is listed among the registered student organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for accountancy students?",
+        "answer":  "The Junior Philippine Institute of Accountants is listed among the registered student organizations under the College of Management and Accountancy."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for marketing students?",
+        "answer":  "The Junior Marketing Association is listed among the registered student organizations under the College of Management and Accountancy."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for financial management students?",
+        "answer":  "The Junior Financial Executives is listed among the registered student organizations under the College of Management and Accountancy."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for hospitality and tourism students?",
+        "answer":  "The International School of Hospitality and Tourism Management is listed among the registered student organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organizations are available for engineering students?",
+        "answer":  "The university lists student organizations including IECEP, UPEESA, PSME, ICPEP, and PICE under the College of Engineering and Architecture."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for architecture students?",
+        "answer":  "The United Architects of the Philippines Student Auxiliary is listed under the College of Engineering and Architecture."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for political science students?",
+        "answer":  "The Association of Political Science Students is listed under the College of Education and Liberal Arts."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What student organization is available for English students?",
+        "answer":  "The Society of English Writers and Speakers is listed among the registered student organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "Does PHINMA University of Pangasinan have organizations for Senior High School students?",
+        "answer":  "Yes. Senior High School registered organizations include AGHAMAYAN, English and Literature Enthusiasts, TANGLAW, PIXELS, Social Arts and Humanities Association, and Senior High School Athletes Association."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What is AGHAMAYAN at PHINMA University of Pangasinan?",
+        "answer":  "AGHAMAYAN is listed as the Science and Mathematics Club among the university\u0027s Senior High School registered student organizations."
+    },
+    {
+        "category":  "Student Organizations",
+        "question":  "What is PIXELS at PHINMA University of Pangasinan?",
+        "answer":  "PIXELS is listed as the Multimedia Arts Club among the Senior High School registered student organizations."
+    },
+    {
+        "category":  "Career Services",
+        "question":  "Does PHINMA University of Pangasinan have partner industries?",
+        "answer":  "Yes. The Student Life page lists affiliated offices and partner industries including Guanzon Group of Companies, SP Madrid and Associates, The Medical City Pangasinan, Foundever, Five Star Group of Companies, Hiraya Wellness and Ecopark, Shearwater Health Advisors, Philippine Air Force, SM Supermalls, Alfamart Trading Philippines, Jobs 180, Philippine Constructors Association, and Wadhwani Foundation."
+    },
+    {
+        "category":  "Career Services",
+        "question":  "Does PHINMA University of Pangasinan provide career planning resources?",
+        "answer":  "Yes. PHINMA University of Pangasinan provides a Student Career Path resource containing information and tools related to career exploration, student aid, scholarships, payment options, and reducing education costs."
+    },
+    {
+        "category":  "Career Services",
+        "question":  "Can incoming students explore career paths through PHINMA University of Pangasinan resources?",
+        "answer":  "Yes. The university\u0027s Student Aid Checklist encourages students to explore potential career paths based on their interests and consider career-related assessments and guidance."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "Can students find scholarship information through PHINMA University of Pangasinan?",
+        "answer":  "Yes. The university provides information about its scholarship programs and directs students to its scholarship resources."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "Is the Hawak Kamay Scholarship available to incoming college freshmen?",
+        "answer":  "Yes. PHINMA\u0027s student aid resources identify the Hawak Kamay Scholarship as financial aid for incoming college freshmen."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "Is the Hawak Kamay Scholarship application free according to PHINMA University of Pangasinan\u0027s student aid resources?",
+        "answer":  "The university\u0027s Student Aid Checklist states that incoming college freshmen can apply for the Hawak Kamay Scholarship through in-person or online application at no cost."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What is the PHINMA Scholarship formerly called?",
+        "answer":  "The PHINMA Scholarship was formerly called the Presidential Scholarship."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What benefits does the PHINMA Scholarship provide?",
+        "answer":  "The PHINMA Scholarship provides a 100% discount on tuition and miscellaneous fees for four or five years. Qualified Honors or Top 10 Grade 12 students who pass the qualifying exam may also receive a ₱4,000 monthly allowance."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What is required to maintain the PHINMA Scholarship?",
+        "answer":  "The listed maintenance requirements include two hours of service per day at the assigned department, no grade below 2.0, and an average of 1.75 or above."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What is the Student Assistance Scholarship?",
+        "answer":  "The Student Assistance Scholarship provides 100% tuition coverage for 21 units. Applicants must be in good class standing, have passing grades, perform assigned department service, and pass the required examination and interview."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What scholarship is available to a valedictorian at PHINMA University of Pangasinan?",
+        "answer":  "The Valedictorian Scholarship provides 100% tuition coverage for the semester upon entry."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What scholarship is available to a salutatorian at PHINMA University of Pangasinan?",
+        "answer":  "The Salutatorian Scholarship provides a 50% tuition discount for the semester upon entry."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What is the Dean\u0027s List Scholarship at PHINMA University of Pangasinan?",
+        "answer":  "The Dean\u0027s List Scholarship provides 100% tuition coverage for the top 10 students for the semester following the Dean\u0027s List award and 50% tuition coverage for ranks 11 to 25."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What is the Kapamilya Scholarship at PHINMA University of Pangasinan?",
+        "answer":  "The Kapamilya @ PHINMA UPang Scholarship provides a 10% tuition discount for two siblings and an additional 5% discount for each additional sibling enrolled in the university\u0027s basic education or college programs."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "What is the PHINMA UPang Alumni Scholarship?",
+        "answer":  "The PHINMA UPang Alumni Scholarship provides a 10% tuition discount for university graduates, including Basic Education graduates, and their direct dependents, subject to the listed eligibility requirements."
+    },
+    {
+        "category":  "Scholarships",
+        "question":  "Does PHINMA University of Pangasinan have a direct dependent scholarship?",
+        "answer":  "Yes. The PHINMA UPang Direct Dependent Scholarship provides either 100% tuition coverage with duty or a 50% tuition discount, subject to its eligibility and maintenance requirements."
+    },
+    {
+        "category":  "Contact Information",
+        "question":  "What are the Dagupan Campus contact numbers?",
+        "answer":  "The official UPang website lists +63 995-078-5660, (075) 522-5635, and (075) 522-2496 for the Dagupan Campus."
+    },
+    {
+        "category":  "Contact Information",
+        "question":  "What is the Dagupan Campus email address?",
+        "answer":  "The official UPang website lists info.up@phinmaed.com as the Dagupan Campus email address."
+    },
+    {
+        "category":  "Contact Information",
+        "question":  "What is the Urdaneta Campus contact number?",
+        "answer":  "The official UPang website lists +63 921-211-9138 for the Urdaneta Campus."
+    },
+    {
+        "category":  "Contact Information",
+        "question":  "What is the Urdaneta Campus email address?",
+        "answer":  "The official UPang website lists info.up@phinmaed.com as the Urdaneta Campus email address."
+    },
+    {
+        "category":  "Contact Information",
+        "question":  "Where is the PHINMA University of Pangasinan Dagupan Campus located?",
+        "answer":  "The Dagupan Campus is located at Arellano Street, Dagupan City, 2400, Pangasinan."
+    },
+    {
+        "category":  "Contact Information",
+        "question":  "Where is the PHINMA University of Pangasinan Urdaneta Campus located?",
+        "answer":  "The Urdaneta Campus is located at McArthur Highway, Urdaneta City, 2428, Pangasinan."
+    },
+    {
+        "category":  "Contact Information",
+        "question":  "Does PHINMA University of Pangasinan have an online inquiry option?",
+        "answer":  "Yes. The official website provides a Contact Us section with an inquiry form for contacting the university."
+    },
+    {
+        "category":  "News and Events",
+        "question":  "Does PHINMA University of Pangasinan have official news and events?",
+        "answer":  "Yes. The official UPang website has a News \u0026 Events section containing university-related news, student-life updates, alumni news, and featured news."
+    },
+    {
+        "category":  "Parent Resources",
+        "question":  "Does PHINMA University of Pangasinan have a Parent\u0027s Portal?",
+        "answer":  "Yes. The official UPang website provides access to a Parent\u0027s Portal through its PHINMA Educational Planner resources."
+    },
+    {
+        "category":  "Financial Assistance",
+        "question":  "Does PHINMA University of Pangasinan provide information about payment options?",
+        "answer":  "Yes. Its Student Career Path resources provide information about different payment options and planning for education costs."
+    },
+    {
+        "category":  "Financial Assistance",
+        "question":  "Does PHINMA University of Pangasinan provide tips for reducing education costs?",
+        "answer":  "Yes. The university\u0027s Student Career Path resources provide strategies such as applying for scholarships, considering distance learning where available, utilizing campus resources, and sharing living expenses where appropriate."
+    }
+]
+

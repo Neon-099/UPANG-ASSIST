@@ -12,6 +12,7 @@ const taskRoutes = require("./routes/taskRoutes");
 const authRoutes = require("./modules/auth/authRoutes");
 const conversationRoutes = require("./modules/conversations/conversationRoutes");
 const knowledgeRoutes = require("./routes/knowledgeRoutes");
+const supportRoutes = require("./routes/supportRoutes");
 
 const app = express();
 const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
@@ -54,6 +55,7 @@ app.use(
 app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/api/support", supportRoutes);
 app.use("/api/admin/knowledge", knowledgeRoutes);
 app.use(errorHandler);
 

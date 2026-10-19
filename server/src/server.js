@@ -1,9 +1,11 @@
 ﻿require("./config/environment");
 
 const mongoose = require("mongoose");
+const rateLimit = require("express-rate-limit");
 const app = require("./app");
-const { requireAuth } = require("./middleware/authMiddleware");
+const { optionalAuth } = require("./middleware/authMiddleware");
 const { connectDatabase, logDatabaseConnectionError } = require("./config/database");
+const { requireAuth } = require("./middleware/authMiddleware");
 const Conversation = require("./models/Conversation");
 const ConversationVersion = require("./models/ConversationVersion");
 const { findSemanticReferences } = require("./services/semanticSearch");
@@ -19,19 +21,30 @@ const MIN_SEMANTIC_RELEVANCE = 0.48;
 const MIN_COMBINED_RELEVANCE = 0.4;
 const CAMPUS_SPECIFIC_TERMS = /\b(upang|phinma|university of pangasinan|enroll(?:ment)?|enrolment|registration|admission|registrar|tuition|fees?|scholarships?|financial aid|hawak kamay|academic calendar|class schedule|office|department|course offerings?|student id|uniform|campus policy|school policy|school requirements|clearance|graduation|curriculum|school year|student services|library|faculty)\b/i;
 const ANSWER_FALLBACK = "I couldn't generate a response just now. Please try again.";
+const GUEST_SCOPE_RESPONSE = "I can answer questions covered by UPang Assist's approved public information. Please try a public campus question, or sign in for student-specific assistance.";
+const GUEST_PERSONAL_DATA_RESPONSE = "I can't help with personal student information in public chat. Please sign in with your verified university account for student-specific assistance.";
+const GUEST_PERSONAL_DATA_TERMS = /\b(my|mine|personal|account|student id|grades?|gpa|balance|payment history|registration status|enrollment status|class schedule|attendance|records?)\b/i;
+const guestChatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 12,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: (req) => Boolean(req.user),
+  message: { error: "Guest chat limit reached. Sign in for continued use, or try again later." }
+});
 
-function findKeywordReferences(question) {
-  return getKnowledgeBase().map((reference) => ({
+function findKeywordReferences(question, knowledgeEntries) {
+  return knowledgeEntries.map((reference) => ({
     reference,
     keywordScore: getKeywordRelevance(question, reference)
   }));
 }
 
-async function retrieveKnowledgeReferences(question, history) {
-  const keywordMatches = findKeywordReferences(question);
+async function retrieveKnowledgeReferences(question, history, knowledgeEntries = getKnowledgeBase()) {
+  const keywordMatches = findKeywordReferences(question, knowledgeEntries);
   let semanticMatches = [];
   try {
-    semanticMatches = await findSemanticReferences(question, getKnowledgeBase(), {
+    semanticMatches = await findSemanticReferences(question, knowledgeEntries, {
       limit: 10,
       minScore: MIN_SEMANTIC_RELEVANCE
     });
@@ -52,7 +65,7 @@ async function retrieveKnowledgeReferences(question, history) {
   }).filter((item) => item.hasStrongSignal && item.combinedScore >= MIN_COMBINED_RELEVANCE)
     .sort((first, second) => second.combinedScore - first.combinedScore);
 
-  const followUpReferences = findConversationReferences(question, history);
+  const followUpReferences = findConversationReferences(question, history, knowledgeEntries);
   const references = mergeReferences(followUpReferences, ranked.slice(0, 3).map((item) => item.reference));
   return {
     references,
@@ -106,12 +119,11 @@ function isFollowUpQuestion(question) {
     /\b(it|that|those|these|they|them|there|same|also)\b/i.test(question);
 }
 
-function findConversationReferences(question, history) {
+function findConversationReferences(question, history, knowledgeEntries = getKnowledgeBase()) {
   if (!isFollowUpQuestion(question)) return [];
   const previousAssistant = [...history].reverse().find((message) => message.role === "assistant");
   if (!previousAssistant?.references?.length) return [];
 
-  const knowledgeEntries = getKnowledgeBase();
   return previousAssistant.references
     .map((storedReference) => knowledgeEntries.find((entry) =>
       entry.category === storedReference.category && entry.question === storedReference.question
@@ -190,18 +202,25 @@ async function generateAnswer(question, references, history = [], campusKnowledg
   return { answer: ANSWER_FALLBACK, provider: "response_fallback" };
 }
 
-app.post("/api/chat", requireAuth, async (req, res) => {
+app.post("/api/chat", optionalAuth, guestChatLimiter, async (req, res) => {
   const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+  const isGuest = !req.user;
 
-  if (!question || question.length > 12000) {
-    return res.status(400).json({ error: "question is required and must be at most 12000 characters" });
+  const maxQuestionLength = isGuest ? 1000 : 12000;
+  if (!question || question.length > maxQuestionLength) {
+    return res.status(400).json({ error: `question is required and must be at most ${maxQuestionLength} characters` });
+  }
+  if (isGuest && req.body?.conversationId !== undefined) {
+    return res.status(403).json({ error: "Sign in to use saved conversations" });
   }
 
   let conversation;
-  try {
-    conversation = await findConversation(req);
-  } catch (error) {
-    return res.status(error.status || 500).json({ error: error.status ? error.message : "Unable to load conversation memory" });
+  if (!isGuest) {
+    try {
+      conversation = await findConversation(req);
+    } catch (error) {
+      return res.status(error.status || 500).json({ error: error.status ? error.message : "Unable to load conversation memory" });
+    }
   }
   const history = conversation?.messages || [];
 
@@ -212,7 +231,17 @@ app.post("/api/chat", requireAuth, async (req, res) => {
     return res.status(503).json({ error: "Knowledge database unavailable" });
   }
 
-  const { references, bestScore } = await retrieveKnowledgeReferences(question, history);
+  const knowledgeEntries = isGuest
+    ? getKnowledgeBase().filter((entry) => entry.visibility === "public")
+    : getKnowledgeBase();
+  if (isGuest && GUEST_PERSONAL_DATA_TERMS.test(question)) {
+    return res.json({ text: GUEST_PERSONAL_DATA_RESPONSE, provider: "scope_guard" });
+  }
+  const { references, bestScore } = await retrieveKnowledgeReferences(question, history, knowledgeEntries);
+  if (isGuest && !references.length) {
+    return res.json({ text: GUEST_SCOPE_RESPONSE, provider: "scope_guard" });
+  }
+  if (isGuest) return res.json({ text: references[0].answer, provider: "public_knowledge", references: references.map(({ category, question }) => ({ category, question })) });
   const campusKnowledgeMissing = needsVerifiedCampusKnowledge(question) &&
     (!references.length || bestScore < MIN_COMBINED_RELEVANCE);
   const { answer, provider } = await generateAnswer(question, references, history, campusKnowledgeMissing);
@@ -220,7 +249,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   try {
     if (!conversation) conversation = await createConversation(req.user._id, question);
     await saveChatTurn(conversation, question, answer, references);
-    return res.json({ text: answer, provider, conversationId: conversation._id });
+    return res.json({ text: answer, provider, conversationId: conversation._id, references: references.map(({ category, question }) => ({ category, question })) });
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.status ? error.message : "Unable to save conversation" });
   }
