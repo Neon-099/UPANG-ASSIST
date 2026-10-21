@@ -8,8 +8,10 @@ const attachSupportSocket = require("./services/supportSocket");
 const { optionalAuth } = require("./middleware/authMiddleware");
 const { connectDatabase, logDatabaseConnectionError } = require("./config/database");
 const { requireAuth } = require("./middleware/authMiddleware");
+const { sanitizeChatText, sanitizeChatInput } = require("./utils/sanitizeChatText");
 const Conversation = require("./models/Conversation");
 const ConversationVersion = require("./models/ConversationVersion");
+const User = require("./models/User");
 const { findSemanticReferences } = require("./services/semanticSearch");
 const {
   getKnowledgeBase,
@@ -18,6 +20,7 @@ const {
   backfillKnowledgeSearchData
 } = require("./services/knowledgeBase");
 const { getKeywordRelevance } = require("./services/knowledgeIndex");
+const { deleteExpiredArchivedAnnouncements } = require("./services/announcementCleanup");
 const MIN_KEYWORD_RELEVANCE = 0.48;
 const MIN_SEMANTIC_RELEVANCE = 0.48;
 const MIN_COMBINED_RELEVANCE = 0.4;
@@ -99,16 +102,16 @@ async function findConversation(req) {
 }
 
 function createConversation(owner, question) {
-  return Conversation.create({ owner, title: question.slice(0, 120) });
+  return Conversation.create({ owner, title: sanitizeChatText(question).slice(0, 120) });
 }
 
 async function saveChatTurn(conversation, question, answer, references = []) {
   conversation.messages.push(
-    { role: "user", content: question },
+    { role: "user", content: sanitizeChatText(question) },
     {
       role: "assistant",
-      content: answer,
-      references: references.map(({ category, question: topic }) => ({ category, question: topic }))
+      content: sanitizeChatText(answer),
+      references: references.map(({ category, question: topic }) => ({ category: sanitizeChatText(category), question: sanitizeChatText(topic) }))
     }
   );
   await conversation.save();
@@ -204,7 +207,7 @@ async function generateAnswer(question, references, history = [], campusKnowledg
   return { answer: ANSWER_FALLBACK, provider: "response_fallback" };
 }
 
-app.post("/api/chat", optionalAuth, guestChatLimiter, async (req, res) => {
+app.post("/api/chat", sanitizeChatInput, optionalAuth, guestChatLimiter, async (req, res) => {
   const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
   const isGuest = !req.user;
 
@@ -224,7 +227,14 @@ app.post("/api/chat", optionalAuth, guestChatLimiter, async (req, res) => {
       return res.status(error.status || 500).json({ error: error.status ? error.message : "Unable to load conversation memory" });
     }
   }
-  const history = conversation?.messages || [];
+  const history = (conversation?.messages || []).map((message) => ({
+    ...message.toObject(),
+    content: sanitizeChatText(message.content),
+    references: (message.references || []).map((reference) => ({
+      category: sanitizeChatText(reference.category),
+      question: sanitizeChatText(reference.question)
+    }))
+  }));
 
   try {
     await refreshKnowledgeBase();
@@ -237,27 +247,29 @@ app.post("/api/chat", optionalAuth, guestChatLimiter, async (req, res) => {
     ? getKnowledgeBase().filter((entry) => entry.visibility === "public")
     : getKnowledgeBase();
   if (isGuest && GUEST_PERSONAL_DATA_TERMS.test(question)) {
-    return res.json({ text: GUEST_PERSONAL_DATA_RESPONSE, provider: "scope_guard" });
+    return res.json({ text: sanitizeChatText(GUEST_PERSONAL_DATA_RESPONSE), provider: "scope_guard" });
   }
   const { references, bestScore } = await retrieveKnowledgeReferences(question, history, knowledgeEntries);
   if (isGuest && !references.length) {
-    return res.json({ text: GUEST_SCOPE_RESPONSE, provider: "scope_guard" });
+    return res.json({ text: sanitizeChatText(GUEST_SCOPE_RESPONSE), provider: "scope_guard" });
   }
-  if (isGuest) return res.json({ text: references[0].answer, provider: "public_knowledge", references: references.map(({ category, question }) => ({ category, question })) });
+  if (isGuest) return res.json({ text: sanitizeChatText(references[0].answer), provider: "public_knowledge", references: references.map(({ category, question }) => ({ category: sanitizeChatText(category), question: sanitizeChatText(question) })) });
   const campusKnowledgeMissing = needsVerifiedCampusKnowledge(question) &&
     (!references.length || bestScore < MIN_COMBINED_RELEVANCE);
-  const { answer, provider } = await generateAnswer(question, references, history, campusKnowledgeMissing);
+  const generated = await generateAnswer(question, references, history, campusKnowledgeMissing);
+  const answer = sanitizeChatText(generated.answer);
+  const { provider } = generated;
 
   try {
     if (!conversation) conversation = await createConversation(req.user._id, question);
     await saveChatTurn(conversation, question, answer, references);
-    return res.json({ text: answer, provider, conversationId: conversation._id, references: references.map(({ category, question }) => ({ category, question })) });
+    return res.json({ text: answer, provider, conversationId: conversation._id, references: references.map(({ category, question }) => ({ category: sanitizeChatText(category), question: sanitizeChatText(question) })) });
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.status ? error.message : "Unable to save conversation" });
   }
 });
 
-app.post("/api/conversations/:id/edit", requireAuth, async (req, res) => {
+app.post("/api/conversations/:id/edit", sanitizeChatInput, requireAuth, async (req, res) => {
   const { id } = req.params;
   const messageId = req.body?.messageId;
   const editedContent = typeof req.body?.content === "string" ? req.body.content.trim() : "";
@@ -279,14 +291,21 @@ app.post("/api/conversations/:id/edit", requireAuth, async (req, res) => {
       return res.status(409).json({ error: "Only the latest user message can be edited" });
     }
 
-    const history = conversation.messages.slice(0, messageIndex);
+    const history = conversation.messages.slice(0, messageIndex).map((message) => ({
+      ...message.toObject(),
+      content: sanitizeChatText(message.content)
+    }));
     await refreshKnowledgeBase();
     const { references, bestScore } = await retrieveKnowledgeReferences(editedContent, history);
     const campusKnowledgeMissing = needsVerifiedCampusKnowledge(editedContent) &&
       (!references.length || bestScore < MIN_COMBINED_RELEVANCE);
-    const { answer } = await generateAnswer(editedContent, references, history, campusKnowledgeMissing);
+    const { answer: generatedAnswer } = await generateAnswer(editedContent, references, history, campusKnowledgeMissing);
+    const answer = sanitizeChatText(generatedAnswer);
 
-    const priorMessages = conversation.messages.map((message) => message.toObject({ depopulate: true }));
+    const priorMessages = conversation.messages.map((message) => {
+      const priorMessage = message.toObject({ depopulate: true });
+      return { ...priorMessage, content: sanitizeChatText(priorMessage.content) };
+    });
     const previousVersionCount = await ConversationVersion.countDocuments({ conversation: conversation._id, owner: req.user._id });
     const savedVersion = await ConversationVersion.create({
       conversation: conversation._id,
@@ -300,7 +319,7 @@ app.post("/api/conversations/:id/edit", requireAuth, async (req, res) => {
       conversation.messages.splice(messageIndex + 1);
       conversation.messages[messageIndex].content = editedContent;
       conversation.messages.push({ role: "assistant", content: answer, references });
-      if (messageIndex === 0) conversation.title = editedContent.slice(0, 120);
+      if (messageIndex === 0) conversation.title = sanitizeChatText(editedContent).slice(0, 120);
       await conversation.save();
     } catch (error) {
       await ConversationVersion.deleteOne({ _id: savedVersion._id, owner: req.user._id });
@@ -309,8 +328,15 @@ app.post("/api/conversations/:id/edit", requireAuth, async (req, res) => {
 
     return res.json({
       id: conversation._id,
-      title: conversation.title,
-      messages: conversation.messages,
+      title: sanitizeChatText(conversation.title),
+      messages: conversation.messages.map((message) => ({
+        ...message.toObject(),
+        content: sanitizeChatText(message.content),
+        references: (message.references || []).map((reference) => ({
+          category: sanitizeChatText(reference.category),
+          question: sanitizeChatText(reference.question)
+        }))
+      })),
       versionIndex: 0,
       versionCount: previousVersionCount + 2,
       createdVersion: previousVersionCount + 1
@@ -327,6 +353,12 @@ async function startServer() {
     // Do not accept requests until MongoDB is connected. Otherwise Mongoose
     // could buffer route writes before the database is ready.
     await connectDatabase();
+    await deleteExpiredArchivedAnnouncements();
+    const announcementCleanupTimer = setInterval(() => {
+      deleteExpiredArchivedAnnouncements().catch((error) => console.error("Archived announcement cleanup failed:", error.message));
+    }, 60 * 1000);
+    announcementCleanupTimer.unref();
+    await User.updateMany({ status: { $in: ["disabled", "archived"] } }, { $set: { status: "inactive" } });
     await initializeKnowledgeBase();
     console.log(`Chatbot knowledge loaded (${getKnowledgeBase().length} entries)`);
 

@@ -1,6 +1,7 @@
 ﻿const crypto = require("crypto");
 const argon2 = require("argon2");
 const User = require("../../models/User");
+const LoginAttempt = require("../../models/LoginAttempt");
 const PendingRegistration = require("../../models/PendingRegistration");
 const { normalizeEmail } = require("../../utils/emailPolicy");
 const { createAccessToken } = require("../../utils/jwt");
@@ -10,21 +11,38 @@ const RECOVERY_RESPONSE = "If an active account matches that PHINMA email, a pas
 const OTP_TTL_MS = 10 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_WAIT_MS = 60 * 1000;
+const LOGIN_LOCKOUT_STEP_MS = 15 * 1000;
+const LOGIN_LOCKOUT_MAX_ATTEMPTS = 3;
 const OTP_MAX_ATTEMPTS = 5;
 const REGISTRATION_OTP_TTL_MS = 10 * 60 * 1000;
 const REGISTRATION_RESEND_WAIT_MS = 60 * 1000;
 const REGISTRATION_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const REGISTRATION_COOKIE = "upang_registration_session";
 const UPANG_EMAIL_DOMAIN = "phinmaed.com";
-const UPANG_EMAIL_ACCESS_ERROR = "Access denied. Only official UPang PHINMA emails (*.up@phinmaed.com or @phinmaed.com) are allowed.";
+const UPANG_EMAIL_ACCESS_ERROR = "Use your UPang PHINMA email in the format first.last.up@phinmaed.com (30 characters maximum).";
+const NAME_LETTERS_AND_SPACES = /^\p{L}+(?: \p{L}+)*$/u;
+
+function isValidName(value) {
+  const name = typeof value === "string" ? value.normalize("NFC") : "";
+  return name.length >= 2 && name.length <= 30 && NAME_LETTERS_AND_SPACES.test(name);
+}
 
 function isAllowedUpangEmail(value) {
   // Callers pass only primitive strings; String() makes the value used for
   // validation explicit while request-body objects and arrays are rejected.
   const email = String(value ?? "").trim().toLowerCase();
-  // Require a nonempty username atom; `.up` may follow it for students.
+  // Require at least two dot-separated username parts followed by `.up`.
   // The complete match also rejects whitespace, extra @ signs, and other domains.
-  return /^(?:[a-z0-9_%+-]+(?:\.[a-z0-9_%+-]+)*)(?:\.up)?@phinmaed\.com$/.test(email);
+  return email.length <= 30 && /^[a-z0-9]+(?:[.][a-z0-9]+)+[.]up@phinmaed[.]com$/.test(email);
+}
+
+function hasRequiredPasswordCharacter(password) {
+  return /[^A-Za-z0-9\s]/.test(password);
+}
+
+function hasUniqueSpecialCharacters(password) {
+  const specialCharacters = [...password].filter((character) => !/[\p{L}\p{N}\s]/u.test(character));
+  return specialCharacters.length > 0 && new Set(specialCharacters).size === specialCharacters.length;
 }
 
 function normalizeRequestEmail(body) {
@@ -53,6 +71,20 @@ async function getPendingRegistration(req, res) {
   } catch (error) {
     console.error("Unable to restore registration verification:", error.message);
     return res.status(500).json({ error: "Unable to restore email verification" });
+  }
+}
+
+async function cancelPendingRegistration(req, res) {
+  try {
+    const token = req.cookies?.[REGISTRATION_COOKIE];
+    if (typeof token === "string" && token.length === 64) {
+      await PendingRegistration.deleteOne({ resumeTokenHash: hashRecoveryValue(token) });
+    }
+    res.clearCookie(REGISTRATION_COOKIE, { ...registrationCookieOptions(), maxAge: undefined });
+    return res.status(204).send();
+  } catch (error) {
+    console.error("Unable to cancel registration verification:", error.message);
+    return res.status(500).json({ error: "Unable to cancel email verification" });
   }
 }
 
@@ -88,6 +120,27 @@ async function getCurrentUser(req, res) {
   return res.status(200).json({
     user: req.user ? toSafeUser(req.user) : null
   });
+}
+
+async function updateCurrentUserProfile(req, res) {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim().normalize("NFC") : "";
+  const course = typeof req.body?.course === "string" ? req.body.course.trim() : "";
+  if (!isValidName(name)) return res.status(400).json({ error: "Name must contain 2–30 letters. Single spaces between names are allowed; numbers and symbols are not." });
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (course.length > 150 || (user.authProvider !== "google" && !course)) {
+      return res.status(400).json({ error: user.authProvider !== "google" && !course ? "Choose your course" : "Course must not exceed 150 characters" });
+    }
+    user.name = name;
+    user.username = name;
+    user.course = course;
+    await user.save();
+    return res.json({ user: toSafeUser(user) });
+  } catch (error) {
+    if (error.name === "ValidationError") return res.status(400).json({ error: "Profile information is invalid" });
+    return res.status(500).json({ error: "Unable to update profile" });
+  }
 }
 
 function hashRecoveryValue(value) {
@@ -200,9 +253,13 @@ async function resetPassword(req, res) {
   const confirmPassword = req.body?.confirmPassword;
   if (!isAllowedUpangEmail(email)) return res.status(400).json({ error: UPANG_EMAIL_ACCESS_ERROR });
   if (resetToken.length !== 64) return res.status(400).json({ error: "Invalid or expired password reset session" });
-  if (typeof password !== "string" || password.length < 8 || password.length > 128) {
-    return res.status(400).json({ error: "Password must contain between 8 and 128 characters" });
+  if (typeof password !== "string" || password.length < 8 || password.length > 12) {
+    return res.status(400).json({ error: "Password must contain between 8 and 12 characters" });
   }
+  if (!hasRequiredPasswordCharacter(password)) {
+    return res.status(400).json({ error: "Password must contain at least one special character." });
+  }
+  if (/\s/.test(password)) return res.status(400).json({ error: "Password must not contain spaces." });
   if (password !== confirmPassword) return res.status(400).json({ error: "Passwords do not match" });
 
   try {
@@ -217,12 +274,13 @@ async function resetPassword(req, res) {
     }
 
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const resetCompletedAt = new Date();
     const resetResult = await User.updateOne({
       _id: user._id,
       resetTokenHash: user.resetTokenHash,
       resetTokenExpiresAt: { $gt: new Date() }
     }, {
-      $set: { passwordHash, resetOtpAttempts: 0 },
+      $set: { passwordHash, emailVerifiedAt: resetCompletedAt, lastLoginAt: resetCompletedAt, resetOtpAttempts: 0 },
       $unset: {
         resetOtpHash: 1,
         resetOtpExpiresAt: 1,
@@ -232,7 +290,14 @@ async function resetPassword(req, res) {
       }
     });
     if (!resetResult.modifiedCount) return res.status(400).json({ error: "Invalid or expired password reset session" });
-    return res.status(200).json({ message: "Password reset successfully. Please sign in with your new password." });
+    user.passwordHash = passwordHash;
+    user.emailVerifiedAt = resetCompletedAt;
+    user.lastLoginAt = resetCompletedAt;
+    setAuthCookie(res, user);
+    return res.status(200).json({
+      message: "Password reset successfully.",
+      user: toSafeUser(user)
+    });
   } catch (error) {
     console.error("Password reset failed:", error.message);
     return res.status(500).json({ error: "Unable to reset password" });
@@ -289,7 +354,7 @@ async function findUserByNormalizedEmail(email, select = "") {
 }
 
 function readRegistrationDetails(body) {
-  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const name = typeof body?.name === "string" ? body.name.normalize("NFC") : "";
   const email = normalizeRequestEmail(body);
   const course = typeof body?.course === "string" ? body.course.trim() : "";
   const password = body?.password;
@@ -298,11 +363,15 @@ function readRegistrationDetails(body) {
   if (!name || !email || !course || !password || !confirmPassword) {
     return { error: { status: 400, message: "Name, email, course, password, and confirmation are required" } };
   }
+  if (!isValidName(name)) return { error: { status: 400, message: "Name must contain 2–30 letters. Use single spaces between names only; leading or trailing spaces, numbers, and symbols are not allowed." } };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: { status: 400, message: "Enter a valid email address" } };
-  if (name.length < 2 || name.length > 100) return { error: { status: 400, message: "Name must be between 2 and 100 characters" } };
+  if (name.length < 2 || name.length > 30) return { error: { status: 400, message: "Name must be between 2 and 30 characters" } };
   if (course.length > 150) return { error: { status: 400, message: "Course must not exceed 150 characters" } };
-  if (typeof password !== "string" || password.length < 8 || password.length > 128) {
-    return { error: { status: 400, message: "Password must contain between 8 and 128 characters" } };
+  if (typeof password !== "string" || password.length < 8 || password.length > 12) {
+    return { error: { status: 400, message: "Password must contain between 8 and 12 characters" } };
+  }
+  if (!hasUniqueSpecialCharacters(password)) {
+    return { error: { status: 400, message: "Password must contain at least one special character, and no special character may be repeated." } };
   }
   if (/\s/.test(password) || (typeof confirmPassword === "string" && /\s/.test(confirmPassword))) {
     return { error: { status: 400, message: "Password must not contain spaces." } };
@@ -430,6 +499,12 @@ async function verifyRegistrationOtp(req, res) {
 
 async function login(req, res) {
   try {
+    const { ipHash, retryAfterSeconds } = await getLoginLockout(req);
+    if (retryAfterSeconds > 0) {
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+      return res.status(429).json({ error: `Too many failed sign-in attempts. Try again in ${retryAfterSeconds} seconds.`, retryAfterSeconds });
+    }
+
     const email = normalizeRequestEmail(req.body);
     if (!isAllowedUpangEmail(email)) {
       return res.status(400).json({ error: UPANG_EMAIL_ACCESS_ERROR });
@@ -438,17 +513,24 @@ async function login(req, res) {
     if (!email || typeof password !== "string" || !password) {
       return res.status(400).json({ error: "Email and password are required" });
     }
+    if (typeof password !== "string" || password.length > 12) {
+      return res.status(400).json({ error: "Password must be 12 characters or fewer." });
+    }
     if (/\s/.test(password)) {
       return res.status(400).json({ error: "Password must not contain spaces." });
     }
 
     const user = await User.findOne({ email }).select("+passwordHash _id name email emailVerifiedAt course role status");
-    if (!user || user.status !== "active" || typeof user.passwordHash !== "string" || !user.passwordHash.startsWith("$argon2")) {
-      return res.status(401).json({ error: "Invalid email or password" });
+    if (!user) return recordFailedLogin(ipHash, res);
+    if (user.status !== "active") {
+      return res.status(403).json({ error: "Your account is inactive. Please contact the administrator." });
+    }
+    if (typeof user.passwordHash !== "string" || !user.passwordHash.startsWith("$argon2")) {
+      return recordFailedLogin(ipHash, res);
     }
     const passwordMatches = await argon2.verify(user.passwordHash, password);
     if (!passwordMatches) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      return recordFailedLogin(ipHash, res);
     }
     if (!user.emailVerifiedAt) {
       return res.status(403).json({ error: "Verify your school email before signing in." });
@@ -456,12 +538,83 @@ async function login(req, res) {
 
     user.lastLoginAt = new Date();
     await user.save();
+    await LoginAttempt.deleteOne({ ipHash });
     setAuthCookie(res, user);
     return res.status(200).json({ user: toSafeUser(user) });
   } catch (error) {
     console.error("Login error:", error.message);
     return res.status(500).json({ error: "Unable to log in" });
   }
+}
+
+async function getLoginStatus(req, res) {
+  try {
+    const { failedAttempts, attemptsRemaining, retryAfterSeconds } = await getLoginLockout(req);
+    return res.json({ failedAttempts, attemptsRemaining, retryAfterSeconds });
+  } catch (error) {
+    console.error("Unable to load login attempt status:", error.message);
+    return res.status(500).json({ error: "Unable to load sign-in status" });
+  }
+}
+
+async function recordFailedLogin(ipHash, res) {
+  const attempt = await LoginAttempt.findOneAndUpdate(
+    { ipHash },
+    { $inc: { failures: 1 }, $set: { expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }, $setOnInsert: { blockedUntil: null } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+  if (attempt.failures < LOGIN_LOCKOUT_MAX_ATTEMPTS) {
+    return res.status(401).json({
+      error: "Invalid email or password",
+      failedAttempts: attempt.failures,
+      attemptsRemaining: LOGIN_LOCKOUT_MAX_ATTEMPTS - attempt.failures
+    });
+  }
+
+  const blockedUntil = new Date(Date.now() + LOGIN_LOCKOUT_STEP_MS);
+  // Concurrent bad-password requests may finish out of order. Keep the later
+  // deadline so an earlier attempt cannot shorten the IP's active cooldown.
+  await LoginAttempt.updateOne({ _id: attempt._id }, { $max: { blockedUntil } });
+  const latestAttempt = await LoginAttempt.findById(attempt._id).select("blockedUntil").lean();
+  const retryAfterSeconds = Math.max(1, Math.ceil((latestAttempt.blockedUntil.getTime() - Date.now()) / 1000));
+  res.setHeader("Retry-After", String(retryAfterSeconds));
+  return res.status(401).json({
+    error: "Invalid email or password",
+    failedAttempts: Math.min(attempt.failures, LOGIN_LOCKOUT_MAX_ATTEMPTS),
+    attemptsRemaining: 0,
+    retryAfterSeconds
+  });
+}
+
+async function getLoginLockout(req) {
+  const clientIp = req.ip || req.socket?.remoteAddress || "unknown";
+  const ipHash = hashRecoveryValue(`login-ip:${clientIp}`);
+  const now = new Date();
+  const attempt = await LoginAttempt.findOne({ ipHash }).select("failures blockedUntil").lean();
+  if (attempt?.blockedUntil > now) {
+    const failedAttempts = Math.min(attempt.failures, LOGIN_LOCKOUT_MAX_ATTEMPTS);
+    return {
+      ipHash,
+      failedAttempts,
+      attemptsRemaining: Math.max(0, LOGIN_LOCKOUT_MAX_ATTEMPTS - failedAttempts),
+      retryAfterSeconds: Math.max(1, Math.ceil((attempt.blockedUntil.getTime() - now.getTime()) / 1000))
+    };
+  }
+  if (attempt?.blockedUntil && attempt.blockedUntil <= now) {
+    // Start a fresh three-attempt window after the full cooldown has elapsed.
+    await LoginAttempt.updateOne(
+      { ipHash, blockedUntil: attempt.blockedUntil },
+      { $set: { failures: 0, blockedUntil: null } }
+    );
+    return { ipHash, failedAttempts: 0, attemptsRemaining: LOGIN_LOCKOUT_MAX_ATTEMPTS, retryAfterSeconds: 0 };
+  }
+  const failedAttempts = Math.min(attempt?.failures || 0, LOGIN_LOCKOUT_MAX_ATTEMPTS);
+  return {
+    ipHash,
+    failedAttempts,
+    attemptsRemaining: Math.max(0, LOGIN_LOCKOUT_MAX_ATTEMPTS - failedAttempts),
+    retryAfterSeconds: 0
+  };
 }
 async function getCurrentUser(req, res) {
   return res.status(200).json({
@@ -547,7 +700,7 @@ function googleConfigurationErrorCode(issue) {
   return "google_configuration_error";
 }
 
-function googleFailure(res, code) {
+function googleFailure(res, code, retryAfterSeconds = 0) {
   let frontendOrigin = "http://localhost:5173";
   try {
     const configuredOrigin = new URL(process.env.FRONTEND_ORIGIN || frontendOrigin);
@@ -559,10 +712,20 @@ function googleFailure(res, code) {
   }
   const destination = new URL("/", frontendOrigin);
   destination.searchParams.set("oauth_error", code);
+  if (retryAfterSeconds > 0) destination.searchParams.set("retry_after", String(retryAfterSeconds));
   return res.redirect(destination.toString());
 }
 
-function startGoogleLogin(req, res) {
+async function startGoogleLogin(req, res) {
+  let lockout;
+  try {
+    lockout = await getLoginLockout(req);
+  } catch (error) {
+    console.error("Unable to check login lockout before Google OAuth:", error.message);
+    return googleFailure(res, "google_database_unavailable");
+  }
+  if (lockout.retryAfterSeconds > 0) return googleFailure(res, "login_locked", lockout.retryAfterSeconds);
+
   const { clientId, clientSecret, redirectUri } = getGoogleConfig();
   const configIssue = getGoogleConfigurationIssue({ clientId, clientSecret, redirectUri });
   if (configIssue) {
@@ -598,6 +761,15 @@ async function googleCallback(req, res) {
     sameSite: "lax",
     path: "/api/auth/google"
   });
+
+  let lockout;
+  try {
+    lockout = await getLoginLockout(req);
+  } catch (error) {
+    console.error("Unable to check login lockout during Google OAuth:", error.message);
+    return googleFailure(res, "google_database_unavailable");
+  }
+  if (lockout.retryAfterSeconds > 0) return googleFailure(res, "login_locked", lockout.retryAfterSeconds);
 
   if (!stateCookie || typeof req.query.state !== "string" ||
       stateCookie.length !== req.query.state.length ||
@@ -672,8 +844,9 @@ async function googleCallback(req, res) {
     let user = await findUserByNormalizedEmail(email);
     if (!user) {
       const name = typeof identity.name === "string" && identity.name.trim()
-        ? identity.name.trim().slice(0, 100)
+        ? identity.name.trim().normalize("NFC").slice(0, 30)
         : email.split("@")[0];
+      if (!isValidName(name)) return googleFailure(res, "google_name_letters_only");
       try {
         user = await User.create({
           name,
@@ -715,13 +888,16 @@ async function googleCallback(req, res) {
 module.exports = {
   requestRegistrationOtp,
   getPendingRegistration,
+  cancelPendingRegistration,
   resendRegistrationOtp,
   verifyRegistrationOtp,
   login,
+  getLoginStatus,
   requestPasswordReset,
   verifyPasswordResetOtp,
   resetPassword,
   getCurrentUser,
+  updateCurrentUserProfile,
   logout,
   startGoogleLogin,
   googleCallback

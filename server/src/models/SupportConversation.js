@@ -6,6 +6,8 @@ const supportMessageSchema = new mongoose.Schema({
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   senderName: { type: String, trim: true, maxlength: 120, default: "" },
   text: { type: String, required: true, trim: true, maxlength: 2000 },
+  studentSeenAt: { type: Date, default: null },
+  adminSeenAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 }, { _id: true });
 

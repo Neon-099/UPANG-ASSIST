@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Conversation = require("../../models/Conversation");
 const ConversationVersion = require("../../models/ConversationVersion");
 const { requireAuth } = require("../../middleware/authMiddleware");
+const { sanitizeChatText } = require("../../utils/sanitizeChatText");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -14,7 +15,7 @@ router.get("/", async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
     return res.json(items.map(({ _id, title, createdAt, updatedAt, messages }) => ({
-      id: _id, title, createdAt, updatedAt, messageCount: messages.length
+      id: _id, title: sanitizeChatText(title), createdAt, updatedAt, messageCount: messages.length
     })));
   } catch {
     return res.status(500).json({ error: "Unable to retrieve conversations" });
@@ -22,7 +23,7 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "New conversation";
+  const title = typeof req.body?.title === "string" ? sanitizeChatText(req.body.title) : "New conversation";
   if (!title || title.length > 120) return res.status(400).json({ error: "Title must be 1 to 120 characters" });
   try {
     const conversation = await Conversation.create({ owner: req.user._id, title });
@@ -62,10 +63,17 @@ router.get("/:id", async (req, res) => {
     }
     return res.json({
       id: conversation._id,
-      title: conversation.title,
+      title: sanitizeChatText(conversation.title),
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
-      messages,
+      messages: messages.map((message) => ({
+        ...message,
+        content: sanitizeChatText(message.content),
+        references: (message.references || []).map((reference) => ({
+          category: sanitizeChatText(reference.category),
+          question: sanitizeChatText(reference.question)
+        }))
+      })),
       versionIndex: requestedVersion,
       versionCount: versions.length + 1,
       versions: versions.map(({ versionNumber, createdAt, editedMessageId }) => ({ versionNumber, createdAt, editedMessageId: editedMessageId.toString() }))
@@ -77,7 +85,7 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID" });
-  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const title = typeof req.body?.title === "string" ? sanitizeChatText(req.body.title) : "";
   if (!title || title.length > 120) return res.status(400).json({ error: "Title must be 1 to 120 characters" });
   try {
     const conversation = await Conversation.findOneAndUpdate(

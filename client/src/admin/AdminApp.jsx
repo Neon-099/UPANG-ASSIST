@@ -1,11 +1,12 @@
 ﻿import { useCallback, useEffect, useState } from 'react'
 import { Activity } from 'lucide-react'
-import { apiRequest } from '../api'
+import { apiRequest, notifyUnauthorized } from '../api'
 import { createSupportSocket } from '../supportSocket'
 import { DashboardView } from './components/DashboardView'
 import { KnowledgeBaseView } from './components/KnowledgeBaseView'
 import SupportInquiriesView from './components/SupportInquiriesView'
 import AnnouncementsView from './components/AnnouncementsView'
+import UserRolesView from './components/UserRolesView'
 import { Navbar } from './components/Navbar'
 import { Sidebar } from './components/Sidebar'
 import './admin.css'
@@ -111,7 +112,7 @@ export default function AdminApp() {
           setCurrentUser(data.user)
           loadKnowledge()
         } else if (active) {
-          window.location.replace('/')
+          notifyUnauthorized({ status: 403, message: 'Administrator access required' })
         }
       })
       .catch(() => {
@@ -148,6 +149,33 @@ export default function AdminApp() {
       return true
     } catch (requestError) {
       setError(requestError.message || 'Unable to save announcement.')
+      return false
+    }
+  }
+
+  const restoreAnnouncement = async (id) => {
+    setError('')
+    try {
+      await apiRequest(`/announcements/admin/${encodeURIComponent(id)}/restore`, { method: 'POST' })
+      await loadAnnouncements()
+      return true
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to restore announcement.')
+      return false
+    }
+  }
+
+  const archiveAnnouncements = async (ids) => {
+    setError('')
+    try {
+      await apiRequest('/announcements/admin/bulk-archive', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      })
+      await loadAnnouncements()
+      return true
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to archive announcements.')
       return false
     }
   }
@@ -229,16 +257,23 @@ export default function AdminApp() {
     setSupportInquiries((current) => [updated, ...current.filter((item) => item.conversationId !== id)])
   }
 
+  const markSupportMessageSeen = useCallback(async (conversationId, messageId) => {
+    const data = await apiRequest(`/support/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/seen`, { method: 'POST' })
+    const updated = fromSupportConversation(data.conversation)
+    setSupportInquiries((current) => [updated, ...current.filter((item) => item.conversationId !== conversationId)])
+  }, [])
+
   const logout = async () => {
     try { await apiRequest('/auth/logout', { method: 'POST' }) } catch { /* clear local view when the API is unavailable */ }
     setCurrentUser(null)
     setKnowledgeItems([])
     setSupportInquiries([])
     setAnnouncements([])
+    window.location.replace('/')
   }
 
   if (authLoading) return <main className="admin-loading"><Activity className="animate-spin" /><span>Checking administrator accessâ€¦</span></main>
-  if (!currentUser) return <main className="admin-loading"><Activity className="animate-spin" /><span>Redirecting to the main sign-in page…</span></main>
+  if (!currentUser) return null
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-white">
@@ -250,8 +285,9 @@ export default function AdminApp() {
           {loadingKnowledge && <p className="admin-data-status" role="status">Loading the server knowledge baseâ€¦</p>}
           {currentTab === 'dashboard' && <DashboardView inquiries={supportInquiries} knowledgeItems={knowledgeItems} onNavigateTab={setCurrentTab} onOpenAddKnowledge={() => { setCurrentTab('knowledge'); setIsAddKnowledgeOpen(true) }} />}
           {currentTab === 'knowledge' && <KnowledgeBaseView items={knowledgeItems} onAddItem={(item) => saveKnowledge('POST', null, item)} onUpdateItem={(id, item) => saveKnowledge('PATCH', id, { ...knowledgeItems.find((entry) => entry.id === id), ...item })} onDeleteItem={deleteKnowledge} isAddModalOpen={isAddKnowledgeOpen} setIsAddModalOpen={setIsAddKnowledgeOpen} />}
-          {currentTab === 'inquiries' && <SupportInquiriesView inquiries={supportInquiries} adminId={String(currentUser.id || currentUser._id)} loading={supportLoading} error={supportError} onAccept={(id) => updateSupportConversation(id, 'accept')} onReply={(id, text, clientMessageId) => updateSupportConversation(id, 'reply', { text, clientMessageId })} onResolve={(id) => updateSupportConversation(id, 'resolve')} />}
-          {currentTab === 'announcements' && <AnnouncementsView announcements={announcements} loading={loadingAnnouncements} onSave={saveAnnouncement} onDeleteMany={deleteAnnouncements} />}
+          {currentTab === 'inquiries' && <SupportInquiriesView inquiries={supportInquiries} adminId={String(currentUser.id || currentUser._id)} loading={supportLoading} error={supportError} onAccept={(id) => updateSupportConversation(id, 'accept')} onReply={(id, text, clientMessageId) => updateSupportConversation(id, 'reply', { text, clientMessageId })} onResolve={(id) => updateSupportConversation(id, 'resolve')} onSeen={markSupportMessageSeen} />}
+          {currentTab === 'announcements' && <AnnouncementsView announcements={announcements} loading={loadingAnnouncements} onSave={saveAnnouncement} onRestore={restoreAnnouncement} onArchiveMany={archiveAnnouncements} onDeleteMany={deleteAnnouncements} />}
+          {currentTab === 'users' && <UserRolesView currentUserId={String(currentUser.id || currentUser._id)} />}
         </main>
       </div>
     </div>

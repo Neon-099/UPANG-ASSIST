@@ -10,11 +10,32 @@ function readCookie(header, name) {
   try { return decodeURIComponent(entry.slice(name.length + 1)); } catch { return null; }
 }
 
+function isAllowedSocketOrigin(origin, configuredOrigin) {
+  // Same-origin polling requests may omit Origin. Every socket still has to
+  // pass the signed-in account check below before it can connect.
+  if (!origin || origin === configuredOrigin) return true;
+  if (process.env.NODE_ENV === "production") return false;
+
+  // Local development commonly alternates between localhost and 127.0.0.1.
+  try {
+    const actual = new URL(origin);
+    const configured = new URL(configuredOrigin);
+    const localHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+    return localHosts.has(actual.hostname) && localHosts.has(configured.hostname) &&
+      actual.protocol === configured.protocol && actual.port === configured.port;
+  } catch {
+    return false;
+  }
+}
+
 function attachSupportSocket(httpServer) {
   const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
   const io = new Server(httpServer, {
-    cors: { origin: frontendOrigin, credentials: true },
-    allowRequest: (request, callback) => callback(null, request.headers.origin === frontendOrigin)
+    cors: {
+      origin: (origin, callback) => callback(null, isAllowedSocketOrigin(origin, frontendOrigin)),
+      credentials: true
+    },
+    allowRequest: (request, callback) => callback(null, isAllowedSocketOrigin(request.headers.origin, frontendOrigin))
   });
 
   io.use(async (socket, next) => {

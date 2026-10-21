@@ -118,6 +118,28 @@ export default function SignupPage({ onBack, onVerified }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    const normalizedName = form.fullName.normalize('NFC')
+    if (normalizedName.length < 2 || normalizedName.length > 30 || !/^\p{L}+(?: \p{L}+)*$/u.test(normalizedName)) {
+      setRegistrationError('Name must contain 2–30 letters. Use single spaces between names only; do not add spaces at the beginning or end.')
+      return
+    }
+    if (!/^[A-Za-z0-9]+(?:[.][A-Za-z0-9]+)+[.]up@phinmaed[.]com$/i.test(form.email.trim()) || form.email.trim().length > 30) {
+      setRegistrationError('Use your PHINMA email in the format first.last.up@phinmaed.com (30 characters maximum).')
+      return
+    }
+    const specialCharacters = [...form.password].filter((character) => !/[\p{L}\p{N}\s]/u.test(character))
+    if (!specialCharacters.length) {
+      setRegistrationError('Password must contain at least one special character.')
+      return
+    }
+    if (new Set(specialCharacters).size !== specialCharacters.length) {
+      setRegistrationError('Do not repeat a special character in your password.')
+      return
+    }
+    if (/\s/.test(form.password)) {
+      setRegistrationError('Password must not contain spaces.')
+      return
+    }
     if (!isLegalDocumentAccepted('terms') || !isLegalDocumentAccepted('privacy')) {
       setLegalFormError('Read both documents to the end and check both agreement boxes before creating your account.')
       return
@@ -125,7 +147,7 @@ export default function SignupPage({ onBack, onVerified }) {
     setRegistrationBusy(true)
     setRegistrationError('')
     try {
-      const result = await apiRequest('/auth/register/request-otp', { method: 'POST', body: JSON.stringify({ name: form.fullName.trim(), email: form.email, course: form.course, password: form.password, confirmPassword: form.confirmPassword }) })
+      const result = await apiRequest('/auth/register/request-otp', { method: 'POST', body: JSON.stringify({ name: normalizedName, email: form.email, course: form.course, password: form.password, confirmPassword: form.confirmPassword }) })
       setRegistrationNotice(result.message || 'A verification code has been sent to your email.')
       setVerificationRequired(true)
     } catch (error) {
@@ -155,6 +177,19 @@ export default function SignupPage({ onBack, onVerified }) {
     finally { setRegistrationBusy(false) }
   }
 
+  const cancelRegistrationAndGoBack = async () => {
+    setRegistrationBusy(true)
+    setRegistrationError('')
+    try {
+      await apiRequest('/auth/register/pending', { method: 'DELETE' })
+      onBack()
+    } catch (error) {
+      setRegistrationError(error.message)
+    } finally {
+      setRegistrationBusy(false)
+    }
+  }
+
   return (
     <>
       {activeLegalDoc && (
@@ -166,7 +201,7 @@ export default function SignupPage({ onBack, onVerified }) {
           hasReachedEnd={isLegalDocumentRead(activeLegalDoc)}
         />
       )}
-      <main className="flex min-h-[100dvh] w-full flex-col bg-white text-gray-900 lg:flex-row">
+      <main className="signup-page-root flex min-h-[100dvh] w-full flex-col bg-white text-gray-900 lg:flex-row">
       {/* ── Left Branded Visual Panel ── */}
       <section
         className="relative hidden min-h-[100dvh] overflow-hidden bg-cover bg-[70%_center] px-[54px] py-11 text-center text-white lg:flex lg:w-[54%] lg:min-w-[440px] lg:flex-col lg:items-center lg:justify-center"
@@ -191,7 +226,7 @@ export default function SignupPage({ onBack, onVerified }) {
       </section>
 
       {/* ── Right Form Panel ── */}
-      <section className="relative flex min-h-[100dvh] flex-1 flex-col overflow-x-hidden overflow-y-auto bg-white px-6 py-6 sm:px-10 lg:px-[52px] lg:py-9">
+      <section className="relative flex min-h-[100dvh] flex-1 flex-col overflow-x-hidden border-t border-[#e5ebe6] bg-white px-6 py-6 sm:px-10 lg:border-l lg:border-t-0 lg:px-[52px] lg:py-9">
         <div className="pointer-events-none absolute -bottom-[30px] -right-[30px] z-0 h-[380px] w-[380px] opacity-[.055]" aria-hidden="true">
           <img src={upangLogo} alt="" />
         </div>
@@ -217,16 +252,24 @@ export default function SignupPage({ onBack, onVerified }) {
             <form className="flex w-full flex-col gap-[15px]" onSubmit={verifyRegistration}>
               <h2 className="text-lg font-bold text-[#1e2f23]">Verify your email</h2><p className="-mt-2 text-[13.5px] leading-relaxed text-gray-500">Enter the code sent to {form.email || 'your email'} to finish creating your account.</p>
               {registrationNotice && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800" role="status">{registrationNotice}</p>}
-              <div className="flex flex-col gap-1.5"><label htmlFor="registration-otp" className="text-[13px] font-semibold text-gray-800">Verification Code</label><div className="flex h-12 items-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white px-3.5 transition focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10"><input className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="registration-otp" inputMode="numeric" autoComplete="one-time-code" value={registrationOtp} onChange={(event) => setRegistrationOtp(event.target.value)} required /></div></div>
+              <div className="flex flex-col gap-1.5"><label htmlFor="registration-otp" className="text-[13px] font-semibold text-gray-800">Verification Code</label><div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10"><input className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="registration-otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" value={registrationOtp} onChange={(event) => setRegistrationOtp(event.target.value.replace(/\D/g, ''))} required /></div></div>
               {registrationError && <p className="m-0 text-xs leading-relaxed text-[#b42318]" role="alert">{registrationError}</p>}
               <button className="mt-1 flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-[linear-gradient(90deg,#b88628_0%,#7d6b2c_38%,#2d553b_100%)] text-[14.5px] font-bold text-white shadow-[0_6px_18px_-4px_rgba(45,85,59,.35)] transition hover:-translate-y-px hover:brightness-105 disabled:cursor-wait disabled:opacity-70" type="submit" disabled={registrationBusy}>{registrationBusy ? 'Verifying\u2026' : 'Verify & Create Account'}</button>
               <button className="self-center text-[13px] font-bold text-[#1b734b] underline underline-offset-4 disabled:opacity-60" type="button" onClick={resendRegistrationCode} disabled={registrationBusy}>Resend verification code</button>
+              <button
+                className="self-center text-[13px] font-semibold text-gray-600 underline underline-offset-4 transition hover:text-gray-900 disabled:cursor-wait disabled:opacity-60"
+                type="button"
+                onClick={cancelRegistrationAndGoBack}
+                disabled={registrationBusy}
+              >
+                {registrationBusy ? 'Cancelling…' : 'Back to login'}
+              </button>
             </form>
           ) : (
           <form className="flex w-full flex-col gap-[15px]" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="full-name" className="text-[13px] font-semibold text-gray-800">Full Name</label>
-              <div className="flex h-12 items-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white px-3.5 transition focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
+              <div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
                 <svg className="shrink-0 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
@@ -235,12 +278,18 @@ export default function SignupPage({ onBack, onVerified }) {
                   className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="full-name"
                   name="fullName"
                   type="text"
-                  placeholder="e.g. Juan Dela Cruz"
+                  placeholder="e.g. JuanDelaCruz"
+                  minLength={2}
+                  maxLength={30}
+                  pattern="\\p{L}+(?: \\p{L}+)*"
+                  title="Use 2–30 letters with single spaces only between names. No leading or trailing spaces."
                   value={form.fullName}
                   onChange={handleChange}
+                  onInvalid={(event) => { event.preventDefault(); setRegistrationError('Enter a name with 2–30 letters and no leading or trailing spaces.') }}
                   required
                 />
               </div>
+              <p className="m-0 text-[11px] text-gray-500">Use letters with single spaces between names. No leading or trailing spaces, numbers, or symbols.</p>
             </div>
 
             <div className="relative flex flex-col gap-1.5">
@@ -279,7 +328,7 @@ export default function SignupPage({ onBack, onVerified }) {
                 </select>
 
                 <div
-                  className={`flex h-12 items-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white px-3.5 transition focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10 cursor-pointer ${isCourseDropdownOpen ? 'border-[#1b734b] ring-[3px] ring-emerald-800/10' : ''}`}
+                  className={`flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10 cursor-pointer ${isCourseDropdownOpen ? 'border-[#1b734b] ring-[3px] ring-emerald-800/10' : ''}`}
                   onClick={() => setIsCourseDropdownOpen((prev) => !prev)}
                   role="combobox"
                   aria-expanded={isCourseDropdownOpen}
@@ -353,7 +402,7 @@ export default function SignupPage({ onBack, onVerified }) {
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="signup-email" className="text-[13px] font-semibold text-gray-800">Email Address</label>
-              <div className="flex h-12 items-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white px-3.5 transition focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
+              <div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
                 <svg className="shrink-0 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <rect x="2" y="4" width="20" height="16" rx="2" />
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
@@ -362,7 +411,10 @@ export default function SignupPage({ onBack, onVerified }) {
                   className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="signup-email"
                   name="email"
                   type="email"
-                  placeholder="student@up.phinmaed.com"
+                  placeholder="first.last.up@phinmaed.com"
+                  pattern="[A-Za-z0-9]+([.][A-Za-z0-9]+)+[.]up@phinmaed[.]com"
+                  title="Use the format first.last.up@phinmaed.com (30 characters maximum)."
+                  maxLength={30}
                   value={form.email}
                   onChange={handleChange}
                   required
@@ -372,7 +424,7 @@ export default function SignupPage({ onBack, onVerified }) {
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="signup-password" className="text-[13px] font-semibold text-gray-800">Password</label>
-              <div className="flex h-12 items-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white px-3.5 transition focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
+              <div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
                 <svg className="shrink-0 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -382,6 +434,8 @@ export default function SignupPage({ onBack, onVerified }) {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
+                  minLength={8}
+                  maxLength={12}
                   value={form.password}
                   onChange={handleChange}
                   required
@@ -405,11 +459,12 @@ export default function SignupPage({ onBack, onVerified }) {
                   )}
                 </button>
               </div>
+              <p className="text-[11px] leading-relaxed text-gray-500">Use 8–12 characters and at least one special character. You may use different symbols, but do not repeat one. Spaces aren’t allowed.</p>
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="confirm-password" className="text-[13px] font-semibold text-gray-800">Confirm Password</label>
-              <div className="flex h-12 items-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white px-3.5 transition focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
+              <div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10">
                 <svg className="shrink-0 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -419,6 +474,8 @@ export default function SignupPage({ onBack, onVerified }) {
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="••••••••"
+                  minLength={8}
+                  maxLength={12}
                   value={form.confirmPassword}
                   onChange={handleChange}
                   required

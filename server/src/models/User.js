@@ -7,7 +7,8 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
       minlength: 2,
-      maxlength: 100
+      maxlength: 30,
+      match: /^\p{L}+(?: \p{L}+)*$/u
     },
 
     username: { type: String, trim: true, maxlength: 100 },
@@ -18,6 +19,7 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
+      maxlength: 30,
       index: true
     },
 
@@ -49,7 +51,7 @@ const userSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["active", "disabled"],
+      enum: ["active", "inactive"],
       default: "active",
       required: true
     },

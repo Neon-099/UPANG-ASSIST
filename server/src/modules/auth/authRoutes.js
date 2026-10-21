@@ -6,13 +6,16 @@ const { requireAuth, optionalAuth } = require("../../middleware/authMiddleware")
 const {
   requestRegistrationOtp,
   getPendingRegistration,
+  cancelPendingRegistration,
   resendRegistrationOtp,
   verifyRegistrationOtp,
   login,
+  getLoginStatus,
   requestPasswordReset,
   verifyPasswordResetOtp,
   resetPassword,
   getCurrentUser,
+  updateCurrentUserProfile,
   logout,
   startGoogleLogin,
   googleCallback
@@ -36,6 +39,13 @@ const recoveryLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many password recovery attempts. Try again later." }
+});
+
+const loginStatusLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-8",
+  legacyHeaders: false
 });
 
 function registrationLimiter({ windowMs, limit }) {
@@ -66,15 +76,18 @@ const registrationSessionLimiter = registrationLimiter({ windowMs: 60 * 1000, li
 
 router.post("/register/request-otp", registrationRequestLimiter, requestRegistrationOtp);
 router.get("/register/pending", registrationSessionLimiter, getPendingRegistration);
+router.delete("/register/pending", registrationSessionLimiter, cancelPendingRegistration);
 router.post("/register/resend-otp", registrationResendLimiter, resendRegistrationOtp);
 router.post("/register/verify-otp", registrationVerificationLimiter, verifyRegistrationOtp);
 router.post("/login", authLimiter, login);
+router.get("/login-status", loginStatusLimiter, getLoginStatus);
 router.post("/forgot-password", recoveryLimiter, requestPasswordReset);
 router.post("/verify-reset-otp", recoveryLimiter, verifyPasswordResetOtp);
 router.post("/reset-password", recoveryLimiter, resetPassword);
 router.get("/google", startGoogleLogin);
 router.get("/google/callback", googleCallback);
 router.get("/me", optionalAuth, getCurrentUser);
+router.patch("/profile", requireAuth, updateCurrentUserProfile);
 router.post("/logout", logout);
 
 

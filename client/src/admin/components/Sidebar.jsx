@@ -3,6 +3,7 @@ import {
   BookOpen,
   MessageSquareText,
   Megaphone,
+  UsersRound,
   X,
 } from 'lucide-react'
 
@@ -11,6 +12,7 @@ const navItems = [
   { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
   { id: 'inquiries', label: 'Live Support', icon: MessageSquareText },
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
+  { id: 'users', label: 'User Roles', icon: UsersRound },
 ]
 
 export const Sidebar = ({

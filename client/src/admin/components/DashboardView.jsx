@@ -1,259 +1,63 @@
-import {
-  MessageSquare,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Sparkles,
-  Plus,
-} from 'lucide-react'
+import { AlertCircle, BookOpen, CheckCircle2, Clock3, MessageSquare, Sparkles } from 'lucide-react'
 
-export const DashboardView = ({
-  inquiries,
-  knowledgeItems,
-  onNavigateTab,
-  onOpenAddKnowledge,
-}) => {
+const STATUS_GROUPS = [
+  { label: 'Waiting for support', statuses: ['Waiting for Support'], color: 'amber' },
+  { label: 'Assigned', statuses: ['Assigned'], color: 'gold' },
+  { label: 'Live chats', statuses: ['Live Chat'], color: 'green' },
+  { label: 'Resolved', statuses: ['Resolved', 'Ended by Student'], color: 'muted' },
+]
 
-  const escalations = inquiries.filter((inquiry) => ['Waiting for Support', 'Assigned'].includes(inquiry.status)).length
-  const categoryCounts = [...new Set(inquiries.map((inquiry) => inquiry.category))].map((category) => ({
-    name: category,
-    count: inquiries.filter((inquiry) => inquiry.category === category).length,
-    pct: inquiries.length
-      ? Math.round((inquiries.filter((inquiry) => inquiry.category === category).length / inquiries.length) * 100)
-      : 0,
-    color: 'bg-[#10b981]',
-  }))
+export const DashboardView = ({ inquiries, knowledgeItems, onNavigateTab, onOpenAddKnowledge }) => {
+  const openInquiries = inquiries.filter((item) => ['Waiting for Support', 'Assigned', 'Live Chat'].includes(item.status)).length
+  const resolvedInquiries = inquiries.filter((item) => ['Resolved', 'Ended by Student'].includes(item.status)).length
+  const waitingInquiries = inquiries.filter((item) => item.status === 'Waiting for Support').length
+
+  const summaries = [
+    { label: 'Support inquiries', value: inquiries.length, note: 'All recorded conversations', icon: MessageSquare, tone: 'gold' },
+    { label: 'Need attention', value: openInquiries, note: `${waitingInquiries} waiting for an administrator`, icon: AlertCircle, tone: 'amber' },
+    { label: 'Resolved support', value: resolvedInquiries, note: 'Resolved or ended by student', icon: CheckCircle2, tone: 'green' },
+    { label: 'Knowledge entries', value: knowledgeItems.length, note: 'Available in the knowledge base', icon: BookOpen, tone: 'teal' },
+  ]
 
   return (
     <div className="admin-view-stack admin-dashboard-view min-w-0">
-      {/* Top Banner & Quick Controls matching user UI hero block */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#0d261a] via-[#163d2a] to-[#0a1a12] rounded-3xl p-6 border border-[#df9e28]/40 shadow-2xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-96 bg-[radial-gradient(circle_at_center,rgba(240,180,69,0.18)_0,transparent_70%)] pointer-events-none" />
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#df9e28]/20 border border-[#df9e28]/40 text-[#f0b445] text-xs font-bold mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-[#f0b445]" />
-            <span>PHINMA UPang â€¢ Dagupan City Campus</span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
-            Admin Command Center
-          </h1>
+      <header className="flex flex-wrap items-end justify-between gap-4 rounded-3xl border border-[#df9e28]/40 bg-gradient-to-r from-[#0d261a] via-[#163d2a] to-[#0a1a12] p-6 shadow-2xl">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#df9e28]/40 bg-[#df9e28]/20 px-3 py-1 text-xs font-bold text-[#f0b445]"><Sparkles className="h-3.5 w-3.5" />PHINMA UPang · Dagupan City Campus</span>
+          <h1 className="mt-3 text-xl font-black tracking-tight text-white md:text-2xl">Admin Dashboard</h1>
+          <p className="mt-1 text-sm text-white/60">A summary of recorded support activity and knowledge resources.</p>
         </div>
-
-        <div className="relative z-10 flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={onOpenAddKnowledge}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-[#df9e28] to-[#f0b445] hover:brightness-110 text-[#08170f] transition-all shadow-lg shadow-black/30"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Add FAQ</span>
-          </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onNavigateTab('inquiries')} className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white/80 hover:bg-white/10">View support inquiries</button>
+          <button type="button" onClick={onOpenAddKnowledge} className="rounded-xl bg-gradient-to-r from-[#df9e28] to-[#f0b445] px-4 py-2.5 text-xs font-extrabold text-[#08170f] shadow-lg">Add knowledge entry</button>
         </div>
-      </div>
+      </header>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1 */}
-        <div className="glass-card p-5 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/60">Total Inquiries Today</span>
-            <div className="p-2.5 rounded-xl bg-[#df9e28]/15 border border-[#df9e28]/30 text-[#f0b445]">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">{inquiries.length}</span>
-          </div>
-          <p className="mt-1 text-[11px] text-white/40">Recorded inquiries</p>
-        </div>
+      <section aria-label="Summary totals" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {summaries.map(({ label, value, note, icon: Icon, tone }) => <article key={label} className="glass-card rounded-2xl p-5">
+          <div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold text-white/60">{label}</span><span className={`rounded-xl border p-2.5 ${tone === 'gold' ? 'border-[#df9e28]/30 bg-[#df9e28]/15 text-[#f0b445]' : tone === 'amber' ? 'border-amber-500/30 bg-amber-500/15 text-amber-400' : tone === 'green' ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400' : 'border-teal-500/30 bg-teal-500/15 text-teal-400'}`}><Icon className="h-4 w-4" /></span></div>
+          <strong className="mt-3 block text-3xl font-black text-white">{value}</strong><p className="mt-1 text-[11px] text-white/45">{note}</p>
+        </article>)}
+      </section>
 
-        {/* Card 2 */}
-        <div className="glass-card p-5 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/60">AI Resolution Rate</span>
-            <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="glass-panel rounded-3xl p-5" aria-labelledby="status-summary-title">
+          <div className="mb-4"><h2 id="status-summary-title" className="text-sm font-extrabold text-white">Support status summary</h2><p className="mt-1 text-xs text-white/50">Counts from the current support inquiry list.</p></div>
+          <div className="space-y-3">
+            {STATUS_GROUPS.map((group) => {
+              const count = inquiries.filter((item) => group.statuses.includes(item.status)).length
+              const percent = inquiries.length ? Math.round((count / inquiries.length) * 100) : 0
+              const color = group.color === 'green' ? 'bg-emerald-400' : group.color === 'amber' ? 'bg-amber-400' : group.color === 'gold' ? 'bg-[#f0b445]' : 'bg-white/50'
+              return <div key={group.label}>
+                <div className="mb-1.5 flex items-center justify-between gap-2 text-xs"><span className="text-white/75">{group.label}</span><span className="font-mono font-bold text-white">{count} <span className="font-normal text-white/40">({percent}%)</span></span></div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10"><div className={`h-full rounded-full ${color}`} style={{ width: `${percent}%` }} /></div>
+              </div>
+            })}
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">â€”</span>
-          </div>
-          <p className="mt-1 text-[11px] text-white/40">No analytics available</p>
-        </div>
+          <button type="button" onClick={() => onNavigateTab('inquiries')} className="mt-5 inline-flex items-center gap-2 border-t border-white/10 pt-4 text-xs font-bold text-[#f0b445] hover:underline"><Clock3 className="h-3.5 w-3.5" />Open support inbox ({openInquiries})</button>
+        </section>
 
-        {/* Card 3 */}
-        <div className="glass-card p-5 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/60">Office Escalations</span>
-            <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
-              <AlertCircle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">{escalations}</span>
-          </div>
-          <p className="mt-1 text-[11px] text-white/40">Escalated inquiries</p>
-        </div>
-
-        {/* Card 4 */}
-        <div className="glass-card p-5 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/60">Average AI Latency</span>
-            <div className="p-2.5 rounded-xl bg-teal-500/15 border border-teal-500/30 text-teal-400">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">â€”</span>
-          </div>
-          <p className="mt-1 text-[11px] text-white/40">No analytics available</p>
-        </div>
-      </div>
-
-      {/* Grid: Charts & Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Weekly Traffic Chart */}
-        <div className="lg:col-span-2 glass-panel p-5 rounded-3xl">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-extrabold text-white">Weekly Student Inquiry Traffic</h2>
-              <p className="text-xs text-white/50">Number of campus questions processed per day</p>
-            </div>
-            <span className="text-xs font-mono bg-white/10 px-3 py-1 rounded-xl text-[#f0b445] font-bold border border-[#f0b445]/30">
-              No data
-            </span>
-          </div>
-
-          <div className="h-52 flex items-center justify-center border-b border-white/10">
-            <p className="text-xs text-white/40">No weekly analytics available</p>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between text-xs text-white/60 gap-2">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 font-medium">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#10b981]"></span> Inquiries Answered
-              </span>
-              <span className="flex items-center gap-1.5 font-medium">
-                <span className="w-2.5 h-2.5 rounded-full bg-white/30"></span> Total Capacity
-              </span>
-            </div>
-            <span className="text-[#f0b445] font-semibold">{inquiries.length} inquiries recorded</span>
-          </div>
-        </div>
-
-        {/* Top Category Distribution */}
-        <div className="glass-panel p-5 rounded-3xl flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-extrabold text-white">Top Inquired Topics</h2>
-              <button
-                onClick={() => onNavigateTab('knowledge')}
-                className="text-xs text-[#f0b445] hover:underline font-bold"
-              >
-                View FAQs
-              </button>
-            </div>
-            <p className="text-xs text-white/50 mb-4">Breakdown of student questions by department</p>
-
-            <div className="space-y-3.5">
-              {categoryCounts.length === 0 && <p className="text-xs text-white/40">No inquiry data yet</p>}
-              {categoryCounts.map((cat) => (
-                <div key={cat.name}>
-                  <div className="flex justify-between text-xs font-medium mb-1">
-                    <span className="text-white/80 truncate pr-2">{cat.name}</span>
-                    <span className="font-mono text-white font-bold">{cat.pct}%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${cat.color}`}
-                      style={{ width: `${cat.pct}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-white/60">
-            <span>Active Knowledge Items: <strong className="text-white">{knowledgeItems.length}</strong></span>
-            <button
-              onClick={onOpenAddKnowledge}
-              className="font-bold text-[#f0b445] hover:underline"
-            >
-              + Add Entry
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Inquiries */}
-      <div className="grid grid-cols-1 gap-6">
-
-        <div className="lg:col-span-2 glass-panel p-5 rounded-3xl">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-sm font-extrabold text-white">Recent Student Inquiries</h2>
-              <p className="text-xs text-white/50">Live chat queries processed by Bexie AI</p>
-            </div>
-            <button
-              onClick={() => onNavigateTab('inquiries')}
-              className="text-xs text-[#f0b445] hover:underline font-bold"
-            >
-              View All ({inquiries.length})
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="admin-dashboard-table w-full text-left text-xs">
-              <thead className="border-b border-white/10 text-white/50 font-semibold uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="pb-2.5 font-bold">Student / ID</th>
-                  <th className="pb-2.5 font-bold">Inquiry</th>
-                  <th className="pb-2.5 font-bold">Category</th>
-                  <th className="pb-2.5 font-bold">Status</th>
-                  <th className="pb-2.5 font-bold text-right">Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {inquiries.slice(0, 5).map((inq) => (
-                  <tr key={inq.id} className="hover:bg-white/[0.04] transition-colors">
-                    <td className="py-2.5">
-                      <div className="font-bold text-white">{inq.studentName}</div>
-                      <div className="text-[10px] text-white/40 font-mono">{inq.studentId}</div>
-                    </td>
-                    <td className="py-2.5 max-w-[220px]">
-                      <div className="truncate text-white/80 font-medium" title={inq.query}>
-                        {inq.query}
-                      </div>
-                    </td>
-                    <td className="py-2.5">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 text-white/70">
-                        {inq.category.split(' ')[0]}
-                      </span>
-                    </td>
-                    <td className="py-2.5">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          inq.status === 'Resolved' || inq.status === 'Ended by Student'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                            : inq.status === 'Waiting for Support' || inq.status === 'Assigned'
-                            ? 'bg-[#df9e28]/20 text-[#f0b445] border border-[#df9e28]/40'
-                            : 'bg-white/10 text-white/70'
-                        }`}
-                      >
-                        {inq.status}
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-right font-mono text-[11px] text-white/40 whitespace-nowrap">
-                      {inq.timestamp}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     </div>
   )
 }
-

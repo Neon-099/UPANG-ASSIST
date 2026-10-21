@@ -40,6 +40,12 @@
 .support-admin-empty svg { width: 32px; height: 32px; margin-bottom: 8px; color: #ffffff55; }
 .support-admin-empty strong { color: #fff; font-size: 14px; }
 .support-admin-empty p { margin: 4px 0 0; color: #ffffff80; font-size: 11px; }
+.support-admin-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #ffffff80; font-size: 11px; }
+.support-admin-pagination-controls { display: flex; align-items: center; gap: 10px; }
+.support-admin-pagination-controls span { min-width: 78px; color: #ffffffb3; text-align: center; }
+.support-admin-pagination-controls button { padding: 8px 12px; border: 1px solid #ffffff1a; border-radius: 10px; color: #ffffffd9; background: #ffffff0d; font-size: 11px; font-weight: 700; cursor: pointer; transition: background .16s,border-color .16s; }
+.support-admin-pagination-controls button:hover:not(:disabled) { border-color: #df9e2866; background: #ffffff16; }
+.support-admin-pagination-controls button:disabled { opacity: .4; cursor: not-allowed; }
 .support-admin-backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 12px; background: #000b; backdrop-filter: blur(8px); }
 .support-admin-dialog { display: flex; width: min(680px,100%); max-height: calc(100dvh - 24px); flex-direction: column; overflow: hidden; border: 1px solid #df9e2866; border-radius: 24px; background: #0c2217; box-shadow: 0 24px 64px #0009; }
 .support-admin-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 20px; border-bottom: 1px solid #ffffff1a; }
@@ -62,6 +68,7 @@
 .support-transcript-message.from-admin strong { color: #6ee7b7; }
 .support-transcript-message time { color: #ffffff66; font-size: 10px; }
 .support-transcript-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.support-transcript-seen { display: block; margin-top: 5px; color: #86efac; font-size: 10px; font-weight: 700; text-align: right; }
 .support-admin-action-error { margin: 0 20px; }
 .support-admin-dialog-footer { display: grid; gap: 10px; padding: 14px 20px; border-top: 1px solid #ffffff1a; }
 .support-admin-dialog-footer form { display: flex; gap: 8px; }
@@ -77,6 +84,7 @@
 .support-assigned-note { margin: 0; color: #fde68a; font-size: 12px; }
 @media (max-width: 620px) {
   .support-admin-filters { align-items: stretch; flex-direction: column; }
+  .support-admin-pagination { align-items: flex-start; flex-direction: column; }
   .support-admin-status-filter select { flex: 1; }
   .support-admin-table th,.support-admin-table td { padding: 11px 12px; }
   .support-admin-dialog-header { padding: 13px 15px; }

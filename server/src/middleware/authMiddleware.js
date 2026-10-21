@@ -51,7 +51,7 @@ async function authenticate(req, res, next, optional = false) {
         return next();
       }
       return res.status(403).json({
-        error: "User account is disabled"
+        error: "Your account is inactive. Please contact the administrator."
       });
     }
 

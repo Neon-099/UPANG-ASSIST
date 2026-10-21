@@ -32,7 +32,9 @@ export const KnowledgeBaseView = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
+  const [currentPage, setCurrentPage] = useState(1)
   const [editingItem, setEditingItem] = useState(null)
+  const pageSize = 10
 
   // Form State
   const [formTitle, setFormTitle] = useState('')
@@ -96,6 +98,7 @@ export const KnowledgeBaseView = ({
       })
     }
     setIsAddModalOpen(false)
+    setCurrentPage(1)
   }
 
   const filteredItems = items.filter((item) => {
@@ -106,6 +109,9 @@ export const KnowledgeBaseView = ({
       item.response.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesCategory && matchesSearch
   })
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
+  const page = Math.min(currentPage, totalPages)
+  const pageItems = filteredItems.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <div className="admin-view-stack admin-knowledge-view">
@@ -141,7 +147,7 @@ export const KnowledgeBaseView = ({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
             placeholder="Search keywords, topics, or response text..."
             className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/40 focus:outline-none focus:border-[#f0b445]/60 transition-all"
           />
@@ -149,7 +155,7 @@ export const KnowledgeBaseView = ({
 
         <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
           <button
-            onClick={() => setSelectedCategory('All')}
+            onClick={() => { setSelectedCategory('All'); setCurrentPage(1) }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
               selectedCategory === 'All'
                 ? 'bg-gradient-to-r from-[#df9e28] to-[#f0b445] text-[#08170f] shadow-sm'
@@ -161,7 +167,7 @@ export const KnowledgeBaseView = ({
           {CATEGORIES.slice(0, 4).map((cat) => (
             <button
               key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => { setSelectedCategory(cat); setCurrentPage(1) }}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 selectedCategory === cat
                   ? 'bg-[#10b981] text-white shadow-sm'
@@ -176,7 +182,7 @@ export const KnowledgeBaseView = ({
 
       {/* Grid of Knowledge Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredItems.map((item) => (
+        {pageItems.map((item) => (
           <div
             key={item.id}
             className="glass-card rounded-3xl p-5 flex flex-col justify-between"
@@ -274,6 +280,19 @@ export const KnowledgeBaseView = ({
           </div>
         )}
       </div>
+
+      {filteredItems.length > 0 && (
+        <div className="flex flex-col gap-3 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
+          <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length} entries</span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={page === 1}>Previous</button>
+              <span className="min-w-[76px] text-center text-white/70">Page {page} of {totalPages}</span>
+              <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages}>Next</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add / Edit Modal */}
       {isAddModalOpen && (

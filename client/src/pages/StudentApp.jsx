@@ -1,6 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import LoginPage from './LoginPage'
 import SignupPage from './SignupPage'
+import ForgotPasswordPage from './ForgotPasswordPage'
+import GoogleAuthErrorPage from './GoogleAuthErrorPage'
+import SeenMessage from '../components/SeenMessage'
 import { collegeCourses } from '../data/collegeCourses'
 import LoadingPage from './LoadingPage'
 import { apiRequest } from '../api'
@@ -106,17 +109,19 @@ function getNextId(prefix = 'item') {
 }
 
 export default function App() {
-  const [view, setView] = useState('login')
+  const [googleAuthError, setGoogleAuthError] = useState(() => new URLSearchParams(window.location.search).get('oauth_error') || '')
+  const [view, setView] = useState(() => (new URLSearchParams(window.location.search).has('oauth_error') ? 'google-auth-error' : 'login'))
+  const googleRetryAfterSeconds = Math.max(0, Number(new URLSearchParams(window.location.search).get('retry_after')) || 0)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [isLoadingHome, setIsLoadingHome] = useState(false)
   const [userName, setUserName] = useState('')
   const [userRole, setUserRole] = useState('')
   const [userCourse, setUserCourse] = useState('')
   const [userId, setUserId] = useState(null)
-  const [userPhoto, setUserPhoto] = useState('')
-  const [profileDraft, setProfileDraft] = useState({ name: '', course: '', photo: '' })
+  const [profileDraft, setProfileDraft] = useState({ name: '', course: '' })
   const [profileError, setProfileError] = useState('')
   const [profileSaved, setProfileSaved] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
   const isGuest = userRole === 'Guest'
   const isStudent = userRole === 'Student'
   const [input, setInput] = useState('')
@@ -124,9 +129,9 @@ export default function App() {
   const [supportConversation, setSupportConversation] = useState(null)
   const supportSocketRef = useRef(null)
   const [supportPanelOpen, setSupportPanelOpen] = useState(false)
-  const supportPanelOpenRef = useRef(supportPanelOpen)
-  supportPanelOpenRef.current = supportPanelOpen
   const [supportDraft, setSupportDraft] = useState('')
+  const [editingSupportMessageId, setEditingSupportMessageId] = useState(null)
+  const [editingSupportMessageText, setEditingSupportMessageText] = useState('')
   const [supportBusy, setSupportBusy] = useState(false)
   const [supportUnreadCount, setSupportUnreadCount] = useState(0)
   const [confirmEndSupport, setConfirmEndSupport] = useState(false)
@@ -166,8 +171,7 @@ export default function App() {
     setUserName(user.name || user.email)
     setUserRole('Student')
     setUserCourse(user.course || '')
-    setUserPhoto(user.avatar || '')
-    setProfileDraft({ name: user.name || user.email, course: user.course || '', photo: user.avatar || '' })
+    setProfileDraft({ name: user.name || user.email, course: user.course || '' })
     setView('assistant')
     return true
   }, [])
@@ -189,32 +193,27 @@ export default function App() {
 
   // Student announcements and their server-backed inbox state.
   const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS)
-  const [announcementModal, setAnnouncementModal] = useState(null)
+  const [notificationNow, setNotificationNow] = useState(() => Date.now())
   const [notifOpen, setNotifOpen] = useState(false)
-  const [notifFilter, setNotifFilter] = useState('all') // 'all' | 'unread' | 'campus' | 'academic'
+  const [dismissedAdvisoryId, setDismissedAdvisoryId] = useState(null)
   const notifRef = useRef(null)
-  const announcementModalRef = useRef(null)
-  const announcementModalSeenRef = useRef({ userId: null, ids: new Set() })
-  const announcementModalCloseRef = useRef(null)
 
   // Toast notification system state
   const [toasts, setToasts] = useState([])
   const showToast = (toast) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`
-    const newToast = { id, ...toast }
+    const duration = Number.isFinite(toast.duration) ? Math.max(1500, toast.duration) : 4200
+    const newToast = { id, duration, ...toast }
     setToasts((prev) => [...prev, newToast])
     if (pref('soundEffects', false)) playCompletionChime()
-    setTimeout(() => {
+    window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4200)
+    }, duration)
   }
 
   const loadNotifications = useCallback(async () => {
     if (!userId) {
       setNotifications([])
-      setAnnouncementModal(null)
-      announcementModalRef.current = null
-      announcementModalSeenRef.current = { userId: null, ids: new Set() }
       return
     }
     try {
@@ -227,87 +226,17 @@ export default function App() {
         tag: item.category,
       }))
       setNotifications(items)
-      if (announcementModalSeenRef.current.userId !== userId) {
-        announcementModalSeenRef.current = { userId, ids: new Set() }
-      }
-      const nextAnnouncement = items.find((item) => item.unread && !announcementModalSeenRef.current.ids.has(item.id))
-      if (nextAnnouncement && !announcementModalRef.current) {
-        announcementModalSeenRef.current.ids.add(nextAnnouncement.id)
-        announcementModalRef.current = nextAnnouncement
-        setAnnouncementModal(nextAnnouncement)
-      }
     } catch (error) {
       if (error.status !== 401 && error.status !== 403) console.warn('Unable to load announcements:', error.message)
     }
   }, [userId])
 
-  useEffect(() => {
-    if (!userId) { setNotifications([]); return undefined }
-    void loadNotifications()
-    const timer = window.setInterval(() => { void loadNotifications() }, 60000)
-    return () => window.clearInterval(timer)
-  }, [userId, loadNotifications])
-
-  // Close notifications popover on click outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
-        setNotifOpen(false)
-      }
-    }
-    if (notifOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [notifOpen])
-
-  useEffect(() => {
-    if (!announcementModal) return undefined
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    announcementModalCloseRef.current?.focus()
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') closeAnnouncementModal()
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [announcementModal])
-
-  const markAsRead = async (id) => {
-    const notification = notifications.find((item) => item.id === id)
-    if (!notification?.unread) return
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
-    try { await apiRequest(`/announcements/${encodeURIComponent(id)}/read`, { method: 'PATCH', body: JSON.stringify({}) }) }
-    catch (error) {
-      void loadNotifications()
-      showToast({ type: 'warning', title: 'Could not update notification', message: error.message })
-    }
+  const openAnnouncementNotification = () => {
+    setNotifOpen((open) => !open)
   }
 
-  const markAllAsRead = async () => {
-    try { await apiRequest('/announcements/read-all', { method: 'POST', body: JSON.stringify({}) }) }
-    catch (error) {
-      showToast({ type: 'warning', title: 'Could not update notifications', message: error.message })
-      return
-    }
-    setAnnouncementModal(null)
-    announcementModalRef.current = null
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
-    showToast({
-      type: 'info',
-      title: 'Notifications',
-      message: 'All notifications marked as read.',
-    })
-  }
-
-  const closeAnnouncementModal = () => {
-    const announcement = announcementModalRef.current
-    setAnnouncementModal(null)
-    announcementModalRef.current = null
-    if (!announcement) return
+  const selectAnnouncement = (announcement) => {
+    if (!announcement.unread) return
     setNotifications((prev) => prev.map((item) => item.id === announcement.id ? { ...item, unread: false } : item))
     void apiRequest(`/announcements/${encodeURIComponent(announcement.id)}/read`, { method: 'PATCH', body: JSON.stringify({}) })
       .catch((error) => {
@@ -316,15 +245,60 @@ export default function App() {
       })
   }
 
-  const deleteNotification = async (id, e) => {
-    if (e) e.stopPropagation()
-    setNotifications((prev) => prev.filter((n) => n.id !== id))
-    try { await apiRequest(`/announcements/${encodeURIComponent(id)}/dismiss`, { method: 'PATCH', body: JSON.stringify({}) }) }
-    catch (error) {
+  const activeNotifications = notifications.filter((item) => (
+    !item.expiresAt || new Date(item.expiresAt).getTime() > notificationNow
+  ))
+
+  // Remove expired announcements from every student notification surface as
+  // soon as their expiry is reached, even if the next server poll is later.
+  useEffect(() => {
+    const nextExpiry = notifications.reduce((nearest, item) => {
+      if (!item.expiresAt) return nearest
+      const expiry = new Date(item.expiresAt).getTime()
+      return expiry > notificationNow && (!nearest || expiry < nearest) ? expiry : nearest
+    }, 0)
+    if (!nextExpiry) return undefined
+    const timer = window.setTimeout(() => {
+      setNotificationNow(Date.now())
       void loadNotifications()
-      showToast({ type: 'warning', title: 'Could not dismiss notification', message: error.message })
+    }, Math.max(0, nextExpiry - Date.now() + 10))
+    return () => window.clearTimeout(timer)
+  }, [notifications, notificationNow, loadNotifications])
+
+  // Surface the newest published announcement for a 10-second advisory period.
+  // Respect a nearer announcement expiry when less than 10 seconds remain.
+  const newestActiveNotification = activeNotifications[0]
+  const timedAdvisory = newestActiveNotification && String(newestActiveNotification.id) !== dismissedAdvisoryId
+    ? newestActiveNotification
+    : null
+  const advisoryDisplayDuration = useMemo(() => {
+    if (!timedAdvisory) return 0
+    const expiry = timedAdvisory.expiresAt ? new Date(timedAdvisory.expiresAt).getTime() : 0
+    return Math.min(10000, expiry > Date.now() ? expiry - Date.now() : 10000)
+  }, [timedAdvisory?.id, timedAdvisory?.expiresAt])
+
+  useEffect(() => {
+    if (!notifOpen) return undefined
+    const handleClickOutside = (event) => {
+      if (notifRef.current && !notifRef.current.contains(event.target)) setNotifOpen(false)
     }
-  }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [notifOpen])
+
+  useEffect(() => {
+    if (!userId) { setNotifications([]); return undefined }
+    void loadNotifications()
+    const timer = window.setInterval(() => { void loadNotifications() }, 60000)
+    return () => window.clearInterval(timer)
+  }, [userId, loadNotifications])
+
+  useEffect(() => {
+    if (!timedAdvisory || advisoryDisplayDuration <= 0) return undefined
+    const advisoryId = String(timedAdvisory.id)
+    const timer = window.setTimeout(() => setDismissedAdvisoryId(advisoryId), advisoryDisplayDuration)
+    return () => window.clearTimeout(timer)
+  }, [timedAdvisory?.id, advisoryDisplayDuration])
 
   useEffect(() => {
     if (!userId) {
@@ -336,12 +310,8 @@ export default function App() {
       try {
         const { conversation } = await apiRequest('/support/mine')
         if (!active || !conversation) return
+        setSupportUnreadCount(conversation.messages.filter((message) => message.sender === 'admin' && !message.studentSeenAt).length)
         setSupportConversation((current) => {
-          if (current?._id === conversation._id) {
-            const oldAdminIds = new Set(current.messages.filter((message) => message.sender === 'admin').map((message) => message.clientMessageId))
-            const newReplies = conversation.messages.filter((message) => message.sender === 'admin' && !oldAdminIds.has(message.clientMessageId)).length
-            if (newReplies && !supportPanelOpen) setSupportUnreadCount((count) => count + newReplies)
-          }
           return conversation
         })
       } catch (error) {
@@ -351,7 +321,7 @@ export default function App() {
     void refreshSupport()
     const timer = window.setInterval(refreshSupport, 20000)
     return () => { active = false; window.clearInterval(timer) }
-  }, [userId, supportPanelOpen])
+  }, [userId])
 
   useEffect(() => {
     if (!userId || !isStudent) return undefined
@@ -368,11 +338,9 @@ export default function App() {
     supportSocketRef.current = socket
     socket.on('support:updated', ({ conversation }) => {
       if (!conversation) return
+      setSupportUnreadCount(conversation.messages.filter((message) => message.sender === 'admin' && !message.studentSeenAt).length)
       setSupportConversation((current) => {
         if (current && current._id !== conversation._id) return current
-        const previousAdminIds = new Set((current?.messages || []).filter((message) => message.sender === 'admin').map((message) => message.clientMessageId))
-        const newReplies = conversation.messages.filter((message) => message.sender === 'admin' && !previousAdminIds.has(message.clientMessageId)).length
-        if (newReplies && !supportPanelOpenRef.current) setSupportUnreadCount((count) => count + newReplies)
         return conversation
       })
     })
@@ -409,7 +377,6 @@ export default function App() {
       })
       setSupportConversation(data.conversation)
       setSupportPanelOpen(true)
-      setSupportUnreadCount(0)
       showToast({ type: 'success', title: 'Inquiry submitted', message: data.message || 'Your inquiry was sent to the support team.' })
     } catch (error) {
       showToast({ type: 'warning', title: 'Inquiry not submitted', message: error.message })
@@ -445,6 +412,32 @@ export default function App() {
     }
   }
 
+  const handleSupportMessageSeen = useCallback(async (messageId) => {
+    if (!supportConversation?._id || !messageId) return
+    const conversationId = supportConversation._id
+    const data = await apiRequest(`/support/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/seen`, { method: 'POST' })
+    setSupportConversation((current) => current?._id === conversationId
+      ? { ...current, messages: current.messages.map((message) => String(message._id) === data.messageId ? { ...message, studentSeenAt: data.studentSeenAt, adminSeenAt: data.adminSeenAt } : message) }
+      : current)
+    setSupportUnreadCount(data.conversation.messages.filter((message) => message.sender === 'admin' && !message.studentSeenAt).length)
+  }, [supportConversation?._id])
+
+  const handleSupportMessageEdit = async (event, messageId) => {
+    event.preventDefault()
+    const text = editingSupportMessageText.trim()
+    if (!text || !supportConversation || !messageId) return
+    try {
+      const data = await apiRequest(`/support/${supportConversation._id}/messages/${encodeURIComponent(messageId)}`, {
+        method: 'PATCH', body: JSON.stringify({ text }),
+      })
+      setSupportConversation(data.conversation)
+      setEditingSupportMessageId(null)
+      setEditingSupportMessageText('')
+    } catch (error) {
+      showToast({ type: 'warning', title: 'Message not updated', message: error.message })
+    }
+  }
+
   const handleReopenSupport = async () => {
     if (!isStudent || !userId || !supportConversation) return
     setSupportBusy(true)
@@ -457,7 +450,6 @@ export default function App() {
       const data = await apiRequest('/support', { method: 'POST', body: JSON.stringify({ question: supportConversation.question, history }) })
       setSupportConversation(data.conversation)
       setSupportPanelOpen(true)
-      setSupportUnreadCount(0)
     } catch (error) {
       showToast({ type: 'warning', title: 'Could not reopen chat', message: error.message })
     } finally { setSupportBusy(false) }
@@ -475,30 +467,7 @@ export default function App() {
     } finally { setEndingSupport(false) }
   }
 
-  const clearAllNotifications = async () => {
-    try { await apiRequest('/announcements/dismiss-all', { method: 'POST', body: JSON.stringify({}) }) }
-    catch (error) {
-      showToast({ type: 'warning', title: 'Could not clear notifications', message: error.message })
-      return
-    }
-    setAnnouncementModal(null)
-    announcementModalRef.current = null
-    setNotifications([])
-    showToast({
-      type: 'info',
-      title: 'Notifications Cleared',
-      message: 'All notifications have been removed.',
-    })
-  }
-
-  const unreadCount = notifications.filter((n) => n.unread).length
-
-  const filteredNotifications = notifications.filter((n) => {
-    if (notifFilter === 'unread') return n.unread
-    if (notifFilter === 'campus') return n.category === 'campus'
-    if (notifFilter === 'academic') return n.category === 'academic' || n.category === 'announcement'
-    return true
-  })
+  const unreadCount = activeNotifications.filter((n) => n.unread).length
 
   // Settings state — persisted to localStorage
   const [prefs, setPrefs] = useState(() => {
@@ -578,6 +547,14 @@ export default function App() {
   }
 
   const navigateAuthPage = (nextView) => {
+    if (nextView === 'login' && new URLSearchParams(window.location.search).has('oauth_error')) {
+      const params = new URLSearchParams(window.location.search)
+      params.delete('oauth_error')
+      params.delete('retry_after')
+      const query = params.toString()
+      window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
+      setGoogleAuthError('')
+    }
     setView(nextView)
   }
 
@@ -593,45 +570,27 @@ export default function App() {
     }, 1200)
   }
 
-  const handleProfilePhotoChange = (event) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      setProfileError('Choose an image file to use as your profile photo.')
-      return
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setProfileError('Profile photos must be 2 MB or smaller.')
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setProfileDraft((current) => ({ ...current, photo: reader.result }))
-        setProfileError('')
-        setProfileSaved(false)
-      }
-    }
-    reader.onerror = () => setProfileError('The selected photo could not be read. Please try another image.')
-    reader.readAsDataURL(file)
-  }
-
-  const handleSaveProfile = (event) => {
+  const handleSaveProfile = async (event) => {
     event.preventDefault()
     const name = profileDraft.name.trim()
     if (!name) {
       setProfileError('Enter a name before saving your profile.')
       return
     }
-
-    setUserName(name)
-    setUserCourse(profileDraft.course)
-    setUserPhoto(profileDraft.photo)
     setProfileError('')
-    setProfileSaved(true)
+    setProfileSaving(true)
+    try {
+      const { user } = await apiRequest('/auth/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({ name, course: profileDraft.course }),
+      })
+      setUserName(user.name)
+      setUserCourse(user.course || '')
+      setProfileDraft({ name: user.name, course: user.course || '' })
+      setProfileSaved(true)
+    } catch (error) {
+      setProfileError(error.message || 'Unable to update your profile.')
+    } finally { setProfileSaving(false) }
   }
 
   const handleAccountAction = async () => {
@@ -652,8 +611,7 @@ export default function App() {
       setUserId(null)
       setSupportConversation(null)
       setSupportPanelOpen(false)
-      setUserPhoto('')
-      setProfileDraft({ name: '', course: '', photo: '' })
+      setProfileDraft({ name: '', course: '' })
       setProfileSaved(false)
     }
     navigateAuthPage('login')
@@ -670,6 +628,8 @@ export default function App() {
     window.setTimeout(() => setIsLoadingHome(false), 650)
   }
 
+  const handleGetLoginStatus = useCallback(() => apiRequest('/auth/login-status'), [])
+
   const handleGoogleLogin = () => {
     window.location.assign(`${apiBaseUrl}/auth/google`)
   }
@@ -684,7 +644,7 @@ export default function App() {
   const handleSendMessage = async (textToSend) => {
     const trimmed = (textToSend || input).trim()
     if (!trimmed || isTyping) return
-    const userMessage = { id: getNextId('user_msg'), sender: 'user', text: trimmed, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+    const userMessage = { id: getNextId('user_msg'), sender: 'user', text: escapeChatText(trimmed), timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
     setMessages((prev) => [...prev, userMessage])
     setInput('')
     setIsTyping(true)
@@ -698,14 +658,14 @@ export default function App() {
         body: JSON.stringify({ question: trimmed, ...(activeHistoryId ? { conversationId: activeHistoryId } : {}) }),
       })
       if (data.conversationId) setActiveHistoryId(data.conversationId)
-      setMessages((prev) => [...prev, { id: assistantMsgId, sender: 'assistant', text: data.text, followUps: data.followUps || [], references: data.references || [], provider: data.provider, timestamp: assistantTimestamp, escalate: shouldOfferLiveSupport(data) }])
+      setMessages((prev) => [...prev, { id: assistantMsgId, sender: 'assistant', text: escapeChatText(data.text), followUps: data.followUps || [], references: data.references || [], provider: data.provider, timestamp: assistantTimestamp, escalate: shouldOfferLiveSupport(data) }])
       if (!isGuest) {
         try { await loadConversations() } catch (error) { console.error('Unable to refresh conversations:', error.message) }
       }
       if (pref('soundEffects', false)) playCompletionChime()
     } catch (error) {
       console.error('Chat error:', error)
-      setMessages((prev) => [...prev, { id: assistantMsgId, sender: 'assistant', text: `I couldn't get a response from the server. ${error.message || 'Please try again.'}`, timestamp: assistantTimestamp, escalate: true }])
+      setMessages((prev) => [...prev, { id: assistantMsgId, sender: 'assistant', text: escapeChatText(`I couldn't get a response from the server. ${error.message || 'Please try again.'}`), timestamp: assistantTimestamp, escalate: true }])
     } finally {
       setIsTyping(false)
       thoughtHideTimerRef.current = window.setTimeout(() => {
@@ -737,7 +697,7 @@ export default function App() {
       setMessages((conversation.messages || []).map((message) => ({
         id: message._id,
         sender: message.role,
-        text: message.content,
+        text: escapeChatText(message.content),
         timestamp: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         references: message.references || [],
       })))
@@ -770,7 +730,11 @@ export default function App() {
     return <LoadingPage />
   }
 
-  if (view === 'login' || view === 'signup') {
+  if (view === 'google-auth-error') {
+    return <GoogleAuthErrorPage errorCode={googleAuthError} retryAfterSeconds={googleRetryAfterSeconds} onBack={() => navigateAuthPage('login')} />
+  }
+
+  if (view === 'login' || view === 'signup' || view === 'forgot-password') {
     return (
       <div className={`min-h-dvh w-full bg-white text-slate-900 theme-${effectiveTheme}`}>
         {view === 'login' ? (
@@ -778,12 +742,22 @@ export default function App() {
             onGuest={() => enterHome('Guest', 'Guest')}
             onGoogle={handleGoogleLogin}
             onSignUp={() => navigateAuthPage('signup')}
+            onForgotPassword={() => navigateAuthPage('forgot-password')}
             onEnterHome={handleLogin}
+            onGetLoginStatus={handleGetLoginStatus}
           />
-        ) : (
+        ) : view === 'signup' ? (
           <SignupPage
             onBack={() => navigateAuthPage('login')}
             onVerified={() => navigateAuthPage('login')}
+          />
+        ) : (
+          <ForgotPasswordPage
+            onBack={() => navigateAuthPage('login')}
+            onComplete={async ({ user }) => {
+              if (!applyAuthenticatedUser(user)) return
+              try { await loadConversations() } catch (error) { console.error('Unable to load conversations:', error.message) }
+            }}
           />
         )}
       </div>
@@ -937,9 +911,7 @@ export default function App() {
 
         <div className="sidebar-user-card">
           <div className="user-avatar-badge">
-            {userPhoto
-              ? <img src={userPhoto} alt="" className="user-avatar-photo" />
-              : (userName ? userName.substring(0, 2) : 'WS').toUpperCase()}
+            {(userName ? userName.substring(0, 2) : 'WS').toUpperCase()}
           </div>
           <div className="user-info-text">
             <span className="user-display-name">{userName || 'Wildcat Student'}</span>
@@ -984,7 +956,7 @@ export default function App() {
                   onClick={() => {
                     setSettingsTab(item.id)
                     if (item.id === 'profile') {
-                      setProfileDraft({ name: userName, course: userCourse, photo: userPhoto })
+                      setProfileDraft({ name: userName, course: userCourse })
                       setProfileError('')
                       setProfileSaved(false)
                     }
@@ -1017,39 +989,6 @@ export default function App() {
 
                 {!isGuest && settingsTab === 'profile' && (
                   <form className="profile-settings-form" onSubmit={handleSaveProfile}>
-                    <div className="profile-photo-editor">
-                      <div className="profile-photo-preview" aria-label="Profile photo preview">
-                        {profileDraft.photo
-                          ? <img src={profileDraft.photo} alt="Profile preview" />
-                          : (profileDraft.name || userName || 'WS').substring(0, 2).toUpperCase()}
-                      </div>
-                      <div className="profile-photo-actions">
-                        <strong>Profile photo</strong>
-                        <small>Choose a JPG, PNG, GIF, or other image up to 2 MB.</small>
-                        <label className="profile-photo-upload">
-                          Choose photo
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleProfilePhotoChange}
-                            aria-label="Choose profile photo"
-                          />
-                        </label>
-                        {profileDraft.photo && (
-                          <button
-                            type="button"
-                            className="profile-photo-remove"
-                            onClick={() => {
-                              setProfileDraft((current) => ({ ...current, photo: '' }))
-                              setProfileSaved(false)
-                            }}
-                          >
-                            Remove photo
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
                     <label className="profile-field">
                       <span>Display name</span>
                       <input
@@ -1059,7 +998,7 @@ export default function App() {
                           setProfileDraft((current) => ({ ...current, name: event.target.value }))
                           setProfileSaved(false)
                         }}
-                        maxLength={80}
+                        maxLength={30}
                         autoComplete="name"
                         required
                       />
@@ -1092,20 +1031,20 @@ export default function App() {
                     </div>
 
                     {profileError && <p className="profile-form-message is-error" role="alert">{profileError}</p>}
-                    {profileSaved && <p className="profile-form-message" role="status">Profile updated for this session.</p>}
+                    {profileSaved && <p className="profile-form-message" role="status">Profile updated.</p>}
                     <div className="profile-form-actions">
                       <button
                         type="button"
                         className="profile-cancel-btn"
                         onClick={() => {
-                          setProfileDraft({ name: userName, course: userCourse, photo: userPhoto })
+                          setProfileDraft({ name: userName, course: userCourse })
                           setProfileError('')
                           setProfileSaved(false)
                         }}
                       >
                         Discard changes
                       </button>
-                      <button type="submit" className="profile-save-btn">Save changes</button>
+                      <button type="submit" className="profile-save-btn" disabled={profileSaving}>{profileSaving ? 'Saving...' : 'Save changes'}</button>
                     </div>
                   </form>
                 )}
@@ -1300,132 +1239,65 @@ export default function App() {
           </div>
 
           <div className="topbar-actions topbar-right">
-            {/* Notification Center Trigger */}
             <div className="notif-wrapper" ref={notifRef}>
               <button
                 type="button"
                 className={`notif-trigger-btn ${notifOpen ? 'active' : ''}`}
-                onClick={() => { const opening = !notifOpen; setNotifOpen(opening); if (opening) void loadNotifications() }}
-                aria-label="Campus notifications"
+                onClick={openAnnouncementNotification}
+                aria-label={unreadCount ? `Campus announcements, ${unreadCount} unread` : 'Campus announcements'}
                 aria-expanded={notifOpen}
-                title="Notifications"
+                aria-haspopup="dialog"
+                title="Announcements"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                 </svg>
                 {unreadCount > 0 && (
-                  <span className="notif-count-badge">
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                  <span className="notif-count-badge" role="status" aria-live="polite" aria-label={`${unreadCount} unread announcement${unreadCount === 1 ? '' : 's'}`}>
+                    {unreadCount}
                   </span>
                 )}
               </button>
-
-              {/* Notification Popover */}
               {notifOpen && (
-                <div className="notif-popover" role="dialog" aria-label="Campus notifications">
-                  <div className="notif-popover-header">
-                    <div className="notif-header-title">
-                      <h3>Notifications</h3>
-                      {unreadCount > 0 && (
-                        <span className="notif-unread-pill">{unreadCount} new</span>
-                      )}
+                <section className="notif-popover" role="dialog" aria-label="Campus announcements">
+                  <header className="notif-popover-header">
+                    <div>
+                      <h2>Announcements</h2>
+                      <p>{unreadCount ? `${unreadCount} unread announcement${unreadCount === 1 ? '' : 's'}` : 'You are all caught up'}</p>
                     </div>
-                    <div className="notif-header-actions">
-                      {unreadCount > 0 && (
-                        <button
-                          type="button"
-                          className="notif-action-btn"
-                          onClick={markAllAsRead}
-                          title="Mark all as read"
-                        >
-                          Mark all read
-                        </button>
-                      )}
-                      {notifications.length > 0 && (
-                        <button
-                          type="button"
-                          className="notif-action-btn notif-clear-btn"
-                          onClick={clearAllNotifications}
-                          title="Clear all"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Filter tabs */}
-                  <div className="notif-tabs">
-                    {[
-                      { id: 'all', label: 'All' },
-                      { id: 'unread', label: `Unread (${unreadCount})` },
-                      { id: 'campus', label: 'Campus' },
-                      { id: 'academic', label: 'Academic' },
-                    ].map((tab) => (
+                    <button type="button" className="notif-popover-close" onClick={() => setNotifOpen(false)} aria-label="Close announcements">×</button>
+                  </header>
+                  <div className="notif-list">
+                    {activeNotifications.length === 0 ? (
+                      <div className="notif-empty">
+                        <span className="notif-empty-icon" aria-hidden="true">🔔</span>
+                        <strong>No announcements yet</strong>
+                        <p>New campus announcements will appear here.</p>
+                      </div>
+                    ) : activeNotifications.map((item) => (
                       <button
-                        key={tab.id}
                         type="button"
-                        className={`notif-tab-item ${notifFilter === tab.id ? 'active' : ''}`}
-                        onClick={() => setNotifFilter(tab.id)}
+                        key={item.id}
+                        className={`notif-item notif-advisory ${item.unread ? 'unread' : ''}`}
+                        onClick={() => selectAnnouncement(item)}
                       >
-                        {tab.label}
+                        <span className={`notif-tag notif-tag-${item.category}`}>{item.tag || item.category}</span>
+                        <span className="notif-advisory-copy"><strong className="notif-item-title">{item.title}</strong>{' '}<span className="notif-item-message">{item.message}</span></span>
+                        <span className="notif-time notif-advisory-time">{item.time}</span>
+                        {item.unread && <span className="notif-unread-dot" aria-label="Unread" />}
                       </button>
                     ))}
                   </div>
-
-                  {/* Notification items list */}
-                  <div className="notif-list">
-                    {filteredNotifications.length === 0 ? (
-                      <div className="notif-empty">
-                        <span className="notif-empty-icon">🔔</span>
-                        <p>No notifications to display</p>
-                        <small>You're all caught up with university advisories!</small>
-                      </div>
-                    ) : (
-                      filteredNotifications.map((notif) => (
-                        <div
-                          key={notif.id}
-                          className={`notif-item ${notif.unread ? 'unread' : ''}`}
-                          onClick={() => markAsRead(notif.id)}
-                        >
-                          <div className="notif-item-header">
-                            <span className={`notif-tag notif-tag-${notif.category}`}>
-                              {notif.tag || notif.category}
-                            </span>
-                            <span className="notif-time">{notif.time}</span>
-                            <button
-                              type="button"
-                              className="notif-item-delete"
-                              onClick={(e) => deleteNotification(notif.id, e)}
-                              aria-label="Dismiss notification"
-                              title="Dismiss"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <div className="notif-item-title">{notif.title}</div>
-                          <div className="notif-item-message">{notif.message}</div>
-                          {notif.link && (
-                            <a
-                              href={notif.link}
-                              target={/^https:\/\//i.test(notif.link) ? '_blank' : undefined}
-                              rel={/^https:\/\//i.test(notif.link) ? 'noreferrer' : undefined}
-                              onClick={(event) => { event.stopPropagation(); void markAsRead(notif.id) }}
-                              className="notif-item-link"
-                            >Open link</a>
-                          )}
-                          {notif.unread && (
-                            <span className="notif-unread-dot" title="Unread" />
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                  {activeNotifications.length > 0 && (
+                    <footer className="notif-popover-footer">
+                      <span>Showing {activeNotifications.length} announcement{activeNotifications.length === 1 ? '' : 's'}</span>
+                      <button type="button" onClick={() => void loadNotifications()}>Refresh</button>
+                    </footer>
+                  )}
+                </section>
               )}
             </div>
-
             {messages.length > 0 && (
               <button
                 className="reset-chat-btn"
@@ -1454,6 +1326,30 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {timedAdvisory && (
+          <aside className="campus-alert-banner" aria-label="Timed campus advisory">
+            <div className="campus-alert-content">
+              <span className="campus-alert-badge">{timedAdvisory.category === 'campus' ? 'CAMPUS ADVISORY' : (timedAdvisory.tag || timedAdvisory.category).toUpperCase()}</span>
+              <p className="campus-alert-msg"><strong>{timedAdvisory.title}</strong>{' '}{timedAdvisory.message}</p>
+            </div>
+            <button
+              type="button"
+              className="campus-alert-close"
+              onClick={() => {
+                selectAnnouncement(timedAdvisory)
+                setDismissedAdvisoryId(String(timedAdvisory.id))
+              }}
+              aria-label="Dismiss campus advisory"
+            >×</button>
+            <span
+              key={`${timedAdvisory.id}-${timedAdvisory.expiresAt || 'persistent'}`}
+              className="campus-alert-duration-bar countdown"
+              style={{ animationDuration: `${advisoryDisplayDuration}ms` }}
+              aria-hidden="true"
+            />
+          </aside>
+        )}
 
         {/* Content Area: Welcome Center Screen OR Chat Thread */}
         <div className="stage main-content-scroll">
@@ -1535,12 +1431,7 @@ export default function App() {
                     <div className="bub message-bubble">
                       {msg.sender === 'assistant' ? (
                         <>
-                          <div
-                            className="formatted-content"
-                            dangerouslySetInnerHTML={{
-                              __html: formatMarkdown(msg.text),
-                            }}
-                          />
+                          <div className="formatted-content" style={{ whiteSpace: 'pre-wrap' }}>{displayChatText(msg.text)}</div>
 
                           {msg.escalate && isStudent && (
                             <div className="support-escalation-actions">
@@ -1586,7 +1477,7 @@ export default function App() {
                           </div>
                         </>
                       ) : (
-                        <p>{msg.text}</p>
+                        <p style={{ whiteSpace: 'pre-wrap' }}>{displayChatText(msg.text)}</p>
                       )}
                     </div>
                   </div>
@@ -1709,18 +1600,26 @@ export default function App() {
                   const mapped = mapSupportMessage(message)
                   const isUser = mapped.sender === 'user'
                   return (
-                    <div key={message.clientMessageId || message._id} className={`support-widget-row support-widget-row-${mapped.sender}`}>
-                      {!isUser && <div className="support-widget-avatar" aria-hidden="true"><img src={upangLogo} alt="" /></div>}
-                      <div className={`support-widget-message support-widget-message-${mapped.sender}`}>
-                        {mapped.sender === 'admin' && <div className="support-widget-sender-header"><span className="support-widget-badge">LIVE AGENT</span><strong className="support-widget-admin-name">{mapped.senderName || 'Support administrator'}</strong></div>}
-                        <p>{mapped.text}</p>
-                        <div className="support-widget-meta">
-                          {mapped.timestamp && <span className="support-widget-time">{mapped.timestamp}</span>}
-                          {message.pending && <small className="support-widget-pending">Waiting for connection…</small>}
-                          {isUser && !message.pending && <span className="support-widget-ticks" aria-hidden="true">✓✓</span>}
+                    <SeenMessage key={message.clientMessageId || message._id} messageId={message._id} enabled={supportPanelOpen && message.sender === 'admin' && !message.studentSeenAt} onSeen={handleSupportMessageSeen}>
+                      <div className={`support-widget-row support-widget-row-${mapped.sender}`}>
+                        {!isUser && <div className="support-widget-avatar" aria-hidden="true"><img src={upangLogo} alt="" /></div>}
+                        <div className={`support-widget-message support-widget-message-${mapped.sender}`}>
+                          {mapped.sender === 'admin' && <div className="support-widget-sender-header"><span className="support-widget-badge">LIVE AGENT</span><strong className="support-widget-admin-name">{mapped.senderName || 'Support administrator'}</strong></div>}
+                          {editingSupportMessageId === String(message._id) ? (
+                            <form className="support-widget-edit-form" onSubmit={(event) => void handleSupportMessageEdit(event, message._id)}>
+                              <textarea value={editingSupportMessageText} maxLength={2000} onChange={(event) => setEditingSupportMessageText(event.target.value)} aria-label="Edit your live chat message" />
+                              <div><button type="submit" disabled={!editingSupportMessageText.trim()}>Save</button><button type="button" onClick={() => { setEditingSupportMessageId(null); setEditingSupportMessageText('') }}>Cancel</button></div>
+                            </form>
+                          ) : <p>{mapped.text}</p>}
+                          <div className="support-widget-meta">
+                            {mapped.timestamp && <span className="support-widget-time">{mapped.timestamp}</span>}
+                            {message.pending && <small className="support-widget-pending">Waiting for connection…</small>}
+                            {isUser && !message.pending && message.adminSeenAt && <small className="support-widget-seen">Seen</small>}
+                            {isUser && !message.pending && !['resolved', 'ended_by_student'].includes(supportConversation.status) && <button type="button" className="support-widget-edit-trigger" onClick={() => { setEditingSupportMessageId(String(message._id)); setEditingSupportMessageText(message.text) }}>Edit</button>}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </SeenMessage>
                   )
                 })}
               </div>
@@ -1744,55 +1643,12 @@ export default function App() {
             </section>
           )}
           {!supportPanelOpen && (
-            <button type="button" className="support-widget-bubble" onClick={() => { setSupportPanelOpen(true); setSupportUnreadCount(0) }} aria-expanded={false} aria-label={`Open Live Support${supportUnreadCount ? `, ${supportUnreadCount} new ${supportUnreadCount === 1 ? 'reply' : 'replies'}` : `: ${supportStatusLabel(supportConversation.status)}`} `}>
+            <button type="button" className="support-widget-bubble" onClick={() => setSupportPanelOpen(true)} aria-expanded={false} aria-label={`Open Live Support${supportUnreadCount ? `, ${supportUnreadCount} new ${supportUnreadCount === 1 ? 'reply' : 'replies'}` : `: ${supportStatusLabel(supportConversation.status)}`} `}>
               <svg className="support-widget-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5 7.9 7.9 0 0 1-3.3-.72L4 20l1.72-4.48A7.9 7.9 0 0 1 5 12a7.5 7.5 0 1 1 15 0v-.5Z" /><path d="M8.5 12h.01M12 12h.01M15.5 12h.01" /></svg>
               {supportUnreadCount > 0 && <span className="support-widget-unread" aria-hidden="true">{supportUnreadCount > 9 ? '9+' : supportUnreadCount}</span>}
             </button>
           )}
         </aside>
-      )}
-
-      {announcementModal && (
-        <div className="announcement-modal-scrim">
-          <section
-            className="announcement-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="announcement-modal-title"
-            aria-describedby="announcement-modal-message"
-          >
-            <div className="announcement-modal-topline">
-              <span className={`notif-tag notif-tag-${announcementModal.category}`}>
-                {announcementModal.category}
-              </span>
-              <button
-                ref={announcementModalCloseRef}
-                type="button"
-                className="announcement-modal-close"
-                onClick={closeAnnouncementModal}
-                aria-label="Close announcement"
-              >×</button>
-            </div>
-            <p className="announcement-modal-kicker">New campus announcement</p>
-            <h2 id="announcement-modal-title">{announcementModal.title}</h2>
-            <p className="announcement-modal-time">{announcementModal.time}</p>
-            <div id="announcement-modal-message" className="announcement-modal-message">
-              {announcementModal.message}
-            </div>
-            <div className="announcement-modal-actions">
-              {announcementModal.link && (
-                <a
-                  className="announcement-modal-link"
-                  href={announcementModal.link}
-                  target={/^https:\/\//i.test(announcementModal.link) ? '_blank' : undefined}
-                  rel={/^https:\/\//i.test(announcementModal.link) ? 'noreferrer' : undefined}
-                  onClick={closeAnnouncementModal}
-                >Open details</a>
-              )}
-              <button type="button" className="announcement-modal-confirm" onClick={closeAnnouncementModal}>Got it</button>
-            </div>
-          </section>
-        </div>
       )}
 
       {/* Floating Toast Notification Stack */}
@@ -1812,6 +1668,7 @@ export default function App() {
               onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
               aria-label="Close notification"
             >✕</button>
+            <span className="toast-duration-bar" style={{ animationDuration: `${toast.duration}ms` }} aria-hidden="true" />
           </div>
         ))}
       </div>
@@ -1844,48 +1701,15 @@ function shouldOfferLiveSupport(answer) {
   return answer.escalate === true || answer.provider === 'response_fallback' || !hasSchoolSources || /NO_SUPPORTED_ANSWER/i.test(text)
 }
 
-// Markdown formatter for clean assistant text display
-function formatMarkdown(text) {
-  if (!text) return ''
+const CHAT_HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+const CHAT_HTML_UNESCAPES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" }
 
-  let formatted = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+function escapeChatText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => CHAT_HTML_ESCAPES[character])
+}
 
-  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-  formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>')
-
-  const lines = formatted.split('\n')
-  let inList = false
-  let result = []
-
-  for (let line of lines) {
-    const trimmed = line.trim()
-    if (trimmed.startsWith('• ') || trimmed.startsWith('- ')) {
-      if (!inList) {
-        result.push('<ul class="chat-md-list">')
-        inList = true
-      }
-      result.push(`<li>${trimmed.substring(2)}</li>`)
-    } else {
-      if (inList) {
-        result.push('</ul>')
-        inList = false
-      }
-      if (trimmed === '') {
-        result.push('<div class="chat-md-gap"></div>')
-      } else {
-        result.push(`<p class="chat-md-p">${line}</p>`)
-      }
-    }
-  }
-
-  if (inList) {
-    result.push('</ul>')
-  }
-
-  return result.join('')
+function displayChatText(value) {
+  return String(value ?? '').replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => CHAT_HTML_UNESCAPES[entity])
 }
 
 

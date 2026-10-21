@@ -148,6 +148,71 @@ router.post("/:id/messages", requireAuth, async (req, res) => {
   }
 });
 
+router.patch("/:id/messages/:messageId", requireAuth, async (req, res) => {
+  if (!validateConversationId(req, res) || !mongoose.isValidObjectId(req.params.messageId)) {
+    if (!res.headersSent) return res.status(400).json({ error: "Invalid support message ID" });
+    return;
+  }
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (!validText(text, 2000)) return res.status(400).json({ error: "Message must be 1 to 2000 characters" });
+  try {
+    const conversation = await findStudentConversation(req, res);
+    if (!conversation) return;
+    if (["resolved", "ended_by_student"].includes(conversation.status)) {
+      return res.status(409).json({ error: "Reopen this support conversation before editing a message" });
+    }
+    const message = conversation.messages.id(req.params.messageId);
+    if (!message || message.sender !== "student" || String(message.senderId) !== String(req.user._id)) {
+      return res.status(404).json({ error: "Your message was not found" });
+    }
+    message.text = text;
+    await conversation.save();
+    notifySupportUpdate(req, conversation);
+    return res.json({ conversation });
+  } catch (error) {
+    console.error("Student support message update failed:", error.message);
+    return res.status(500).json({ error: "Unable to update support message" });
+  }
+});
+
+router.post("/:id/messages/:messageId/seen", requireAuth, async (req, res) => {
+  if (!validateConversationId(req, res) || !mongoose.isValidObjectId(req.params.messageId)) {
+    if (!res.headersSent) return res.status(400).json({ error: "Invalid support message ID" });
+    return;
+  }
+  try {
+    const user = req.user;
+    const conversation = user.role === "admin"
+      ? await findAdminConversation(req, res)
+      : await findStudentConversation(req, res);
+    if (!conversation) return;
+    const message = conversation.messages.id(req.params.messageId);
+    if (!message) return res.status(404).json({ error: "Support message not found" });
+
+    const isOwner = String(conversation.owner) === String(user._id);
+    const seenField = isOwner ? "studentSeenAt" : "adminSeenAt";
+    const isOtherParticipantMessage = isOwner
+      ? message.sender === "admin"
+      : message.sender === "student";
+    if (!isOtherParticipantMessage) return res.status(400).json({ error: "Only the other participant's messages can be marked seen" });
+
+    if (!message[seenField]) {
+      message[seenField] = new Date();
+      await conversation.save();
+      notifySupportUpdate(req, conversation);
+    }
+    return res.json({
+      messageId: String(message._id),
+      studentSeenAt: message.studentSeenAt,
+      adminSeenAt: message.adminSeenAt,
+      conversation
+    });
+  } catch (error) {
+    console.error("Support message seen receipt failed:", error.message);
+    return res.status(500).json({ error: "Unable to update message seen status" });
+  }
+});
+
 router.post("/:id/end", requireAuth, async (req, res) => {
   if (!validateConversationId(req, res)) return;
   try {

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { CheckCircle2, Clock, Eye, Filter, MessageSquareText, Search, Send, X } from 'lucide-react'
+import SeenMessage from '../../components/SeenMessage'
 import './support-inquiries.css'
 
 const statuses = ['Waiting for Support', 'Assigned', 'Live Chat', 'Resolved', 'Ended by Student']
@@ -11,22 +12,31 @@ function statusClass(status) {
   return 'is-live'
 }
 
-export default function SupportInquiriesView({ inquiries, adminId, loading, error, onAccept, onReply, onResolve }) {
+export default function SupportInquiriesView({ inquiries, adminId, loading, error, onAccept, onReply, onResolve, onSeen }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedId, setSelectedId] = useState(null)
   const [reply, setReply] = useState('')
   const [replyRequestId, setReplyRequestId] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
+  const pageSize = 10
 
   const filtered = useMemo(() => inquiries.filter((item) => {
     const query = search.toLowerCase()
     const matches = [item.studentName, item.studentId, item.query].some((value) => value.toLowerCase().includes(query))
     return matches && (statusFilter === 'All' || item.status === statusFilter)
   }), [inquiries, search, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const page = Math.min(currentPage, totalPages)
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize)
   const selected = inquiries.find((item) => item.id === selectedId) || null
   const assignedElsewhere = Boolean(selected?.assignedTo && selected.assignedTo !== adminId)
+  const markMessageSeen = useCallback((messageId) => {
+    if (!selected?.conversationId || !messageId) return Promise.resolve()
+    return onSeen(selected.conversationId, messageId)
+  }, [onSeen, selected?.conversationId])
 
   const perform = async (action) => {
     setBusy(true)
@@ -68,15 +78,15 @@ export default function SupportInquiriesView({ inquiries, adminId, loading, erro
       {error && <p className="support-admin-alert" role="alert">{error}</p>}
 
       <div className="support-admin-filters">
-        <label className="support-admin-search"><Search aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by student, email, or question..." aria-label="Search support conversations" /></label>
-        <label className="support-admin-status-filter"><Filter aria-hidden="true" /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status"><option value="All">All statuses</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
+        <label className="support-admin-search"><Search aria-hidden="true" /><input value={search} onChange={(event) => { setSearch(event.target.value); setCurrentPage(1) }} placeholder="Search by student, email, or question..." aria-label="Search support conversations" /></label>
+        <label className="support-admin-status-filter"><Filter aria-hidden="true" /><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setCurrentPage(1) }} aria-label="Filter by status"><option value="All">All statuses</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
       </div>
 
       <div className="support-admin-table-wrap">
         <div className="support-admin-table-scroll">
           <table className="support-admin-table">
             <thead><tr><th>Student</th><th>Current question</th><th>Status</th><th>Last activity</th><th>Actions</th></tr></thead>
-            <tbody>{filtered.map((item) => (
+            <tbody>{pageItems.map((item) => (
               <tr key={item.conversationId}>
                 <td><strong>{item.studentName}</strong><small>{item.studentId}</small></td>
                 <td className="support-question-cell"><strong title={item.query}>{item.query}</strong><small>{item.responseSnippet}</small></td>
@@ -90,6 +100,17 @@ export default function SupportInquiriesView({ inquiries, adminId, loading, erro
         {!filtered.length && <div className="support-admin-empty"><MessageSquareText /><strong>{loading ? 'Loading support conversations…' : 'No matching support conversations'}</strong><p>New live chat requests will appear here automatically.</p></div>}
       </div>
 
+      {filtered.length > 0 && (
+        <div className="support-admin-pagination">
+          <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} conversations</span>
+          {totalPages > 1 && <div className="support-admin-pagination-controls">
+            <button type="button" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={page === 1}>Previous</button>
+            <span>Page {page} of {totalPages}</span>
+            <button type="button" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages}>Next</button>
+          </div>}
+        </div>
+      )}
+
       {selected && (
         <div className="support-admin-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDialog() }}>
           <section className="support-admin-dialog" role="dialog" aria-modal="true" aria-labelledby="support-dialog-title">
@@ -100,12 +121,15 @@ export default function SupportInquiriesView({ inquiries, adminId, loading, erro
               {selected.messages.map((message) => {
                 const isAdmin = message.sender === 'admin'
                 const time = message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
-                return <div key={message.clientMessageId || message._id} className={`support-transcript-row ${isAdmin ? 'from-admin' : ''}`}>
-                  <div className={`support-transcript-message ${isAdmin ? 'from-admin' : message.sender === 'student' ? 'from-student' : 'from-assistant'}`}>
-                    <div><strong>{isAdmin ? 'Support Admin (You)' : message.senderName || (message.sender === 'assistant' ? 'UPangAssist Bot' : 'Student')}</strong>{time && <time>{time}</time>}</div>
-                    <p>{message.text}</p>
+                return <SeenMessage key={message.clientMessageId || message._id} messageId={message._id} enabled={!isAdmin && message.sender === 'student' && !message.adminSeenAt && !assignedElsewhere} onSeen={markMessageSeen}>
+                  <div className={`support-transcript-row ${isAdmin ? 'from-admin' : ''}`}>
+                    <div className={`support-transcript-message ${isAdmin ? 'from-admin' : message.sender === 'student' ? 'from-student' : 'from-assistant'}`}>
+                      <div><strong>{isAdmin ? 'Support Admin (You)' : message.senderName || (message.sender === 'assistant' ? 'UPangAssist Bot' : 'Student')}</strong>{time && <time>{time}</time>}</div>
+                      <p>{message.text}</p>
+                      {isAdmin && message.studentSeenAt && <small className="support-transcript-seen">Seen by student</small>}
+                    </div>
                   </div>
-                </div>
+                </SeenMessage>
               })}
             </div>
             {actionError && <p className="support-admin-action-error" role="alert">{actionError}</p>}
