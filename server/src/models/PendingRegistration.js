@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const pendingRegistrationSchema = new mongoose.Schema({
-  name: { type: String, required: true, trim: true, minlength: 2, maxlength: 30, match: /^[A-Za-z]+$/ },
+  name: { type: String, required: true, trim: true, minlength: 2, maxlength: 30, match: /^\p{L}+(?: \p{L}+)*$/u },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 30, index: true },
   course: { type: String, required: true, trim: true, maxlength: 150 },
   passwordHash: { type: String, required: true, select: false },

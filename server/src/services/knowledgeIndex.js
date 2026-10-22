@@ -4,6 +4,7 @@ const ignoredSearchWords = new Set([
   "this", "to", "what", "when", "where", "which", "who", "with", "would",
   "you", "your", "campus", "student", "students"
 ]);
+const { OLLAMA_KEEP_ALIVE } = require("./ollamaWarmup");
 
 const searchWordAliases = {
   wear: ["dress", "uniform"],
@@ -53,14 +54,14 @@ function getEmbeddingText(entry) {
   return [entry.category, entry.question, entry.answer].filter(Boolean).join("\n");
 }
 
-async function createEmbedding(text) {
+async function createEmbedding(text, { timeoutMs = 20000 } = {}) {
   const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   const model = process.env.OLLAMA_EMBEDDING_MODEL || "nomic-embed-text";
   const response = await fetch(`${baseUrl}/api/embed`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, input: text }),
-    signal: AbortSignal.timeout(20000)
+    body: JSON.stringify({ model, input: text, keep_alive: OLLAMA_KEEP_ALIVE }),
+    signal: AbortSignal.timeout(timeoutMs)
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `Ollama embedding request failed (${response.status})`);

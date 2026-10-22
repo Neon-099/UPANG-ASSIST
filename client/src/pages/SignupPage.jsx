@@ -252,11 +252,13 @@ export default function SignupPage({ onBack, onVerified }) {
             <form className="flex w-full flex-col gap-[15px]" onSubmit={verifyRegistration}>
               <h2 className="text-lg font-bold text-[#1e2f23]">Verify your email</h2><p className="-mt-2 text-[13.5px] leading-relaxed text-gray-500">Enter the code sent to {form.email || 'your email'} to finish creating your account.</p>
               {registrationNotice && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800" role="status">{registrationNotice}</p>}
-              <div className="flex flex-col gap-1.5"><label htmlFor="registration-otp" className="text-[13px] font-semibold text-gray-800">Verification Code</label><div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10"><input className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="registration-otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" value={registrationOtp} onChange={(event) => setRegistrationOtp(event.target.value.replace(/\D/g, ''))} required /></div></div>
+              <div className="flex flex-col gap-1.5"><label htmlFor="registration-otp" className="text-[13px] font-semibold text-gray-800">Verification Code</label><div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10"><input   style={{ border: "none", outline: "none", boxShadow: "none" }}
+ className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="registration-otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" value={registrationOtp} onChange={(event) => setRegistrationOtp(event.target.value.replace(/\D/g, ''))} required /></div></div>
               {registrationError && <p className="m-0 text-xs leading-relaxed text-[#b42318]" role="alert">{registrationError}</p>}
               <button className="mt-1 flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-[linear-gradient(90deg,#b88628_0%,#7d6b2c_38%,#2d553b_100%)] text-[14.5px] font-bold text-white shadow-[0_6px_18px_-4px_rgba(45,85,59,.35)] transition hover:-translate-y-px hover:brightness-105 disabled:cursor-wait disabled:opacity-70" type="submit" disabled={registrationBusy}>{registrationBusy ? 'Verifying\u2026' : 'Verify & Create Account'}</button>
               <button className="self-center text-[13px] font-bold text-[#1b734b] underline underline-offset-4 disabled:opacity-60" type="button" onClick={resendRegistrationCode} disabled={registrationBusy}>Resend verification code</button>
               <button
+              
                 className="self-center text-[13px] font-semibold text-gray-600 underline underline-offset-4 transition hover:text-gray-900 disabled:cursor-wait disabled:opacity-60"
                 type="button"
                 onClick={cancelRegistrationAndGoBack}
@@ -275,6 +277,7 @@ export default function SignupPage({ onBack, onVerified }) {
                   <circle cx="12" cy="7" r="4" />
                 </svg>
                 <input
+                  style={{ border: "none", outline: "none", boxShadow: "none" }}
                   className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="full-name"
                   name="fullName"
                   type="text"
@@ -408,6 +411,7 @@ export default function SignupPage({ onBack, onVerified }) {
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
                 <input
+                  style={{ border: "none", outline: "none", boxShadow: "none" }}
                   className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="signup-email"
                   name="email"
                   type="email"
@@ -430,6 +434,7 @@ export default function SignupPage({ onBack, onVerified }) {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
                 <input
+                  style={{ border: "none", outline: "none", boxShadow: "none" }}
                   className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="signup-password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
@@ -470,6 +475,7 @@ export default function SignupPage({ onBack, onVerified }) {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
                 <input
+                  style={{ border: "none", outline: "none", boxShadow: "none" }}
                   className="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" id="confirm-password"
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}

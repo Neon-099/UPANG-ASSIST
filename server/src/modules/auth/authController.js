@@ -416,7 +416,7 @@ async function requestRegistrationOtp(req, res) {
         resumeTokenHash: hashRecoveryValue(resumeToken),
         expiresAt: new Date(now + REGISTRATION_SESSION_TTL_MS)
       },
-    }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });
+    }, { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: true });
 
     try {
       await sendRegistrationOtp(email, otp);
@@ -484,11 +484,13 @@ async function verifyRegistrationOtp(req, res) {
     const user = await User.create({ name: pending.name, email: pending.email, course: pending.course, passwordHash: pending.passwordHash, role: "student", status: "active", emailVerifiedAt, lastLoginAt: null });
     await PendingRegistration.deleteOne({ _id: pending._id, resumeTokenHash: hashRecoveryValue(req.cookies[REGISTRATION_COOKIE]) });
     res.clearCookie(REGISTRATION_COOKIE, { ...registrationCookieOptions(), maxAge: undefined });
+    setAuthCookie(res, user);
     return res.status(200).json({
       email: user.email,
+      user: toSafeUser(user),
       verified: true,
       accountCreated: true,
-      message: "Account verified successfully! You can now log in."
+      message: "Account created and verified successfully."
     });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ error: "An account with this email already exists" });

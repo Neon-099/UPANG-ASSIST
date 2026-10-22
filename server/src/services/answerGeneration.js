@@ -1,4 +1,5 @@
 const NO_SUPPORTED_ANSWER = "NO_SUPPORTED_ANSWER";
+const { OLLAMA_KEEP_ALIVE } = require("./ollamaWarmup");
 
 function formatKnowledgeContext(references) {
   return references.map((reference, index) => [
@@ -30,8 +31,9 @@ async function generateAnswerFromKnowledge(question, references = []) {
         { role: "system", content: getSystemPrompt(references) },
         { role: "user", content: question }
       ],
-      options: { num_predict: 180, temperature: 0.2 },
-      stream: false
+      options: { num_predict: 80, temperature: 0.2 },
+      stream: false,
+      keep_alive: OLLAMA_KEEP_ALIVE
     })
   });
 

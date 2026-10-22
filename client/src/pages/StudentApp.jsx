@@ -6,7 +6,7 @@ import GoogleAuthErrorPage from './GoogleAuthErrorPage'
 import SeenMessage from '../components/SeenMessage'
 import { collegeCourses } from '../data/collegeCourses'
 import LoadingPage from './LoadingPage'
-import { apiRequest } from '../api'
+import { apiRequest, apiStreamRequest } from '../api'
 import { createSupportSocket } from '../supportSocket'
 import upangLogo from '../assets/upang logo.png'
 import ThoughtLine from '../ThoughtLine'
@@ -99,8 +99,17 @@ function playCompletionChime() {
   }
 }
 
-const DEFAULT_NOTIFICATIONS = []
-
+const DEFAULT_NOTIFICATIONS = [
+  {
+    id: 'notif-registrar-release',
+    title: 'Registrar Document Releasing',
+    message: 'Transcript and certification claims are now being processed for release.',
+    unread: true,
+    category: 'records',
+    publishedAt: new Date().toISOString(),
+    tag: 'Records',
+  },
+]
 
 let nextUniqueId = 1000
 function getNextId(prefix = 'item') {
@@ -122,12 +131,16 @@ export default function App() {
   const [profileError, setProfileError] = useState('')
   const [profileSaved, setProfileSaved] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
+  const [profilePhotoError, setProfilePhotoError] = useState('')
+  const [profilePhoto, setProfilePhoto] = useState('')
   const isGuest = userRole === 'Guest'
   const isStudent = userRole === 'Student'
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([])
   const [supportConversation, setSupportConversation] = useState(null)
   const supportSocketRef = useRef(null)
+  const authTransitionTimerRef = useRef(null)
+  const authTransitionResetRef = useRef(null)
   const [supportPanelOpen, setSupportPanelOpen] = useState(false)
   const [supportDraft, setSupportDraft] = useState('')
   const [editingSupportMessageId, setEditingSupportMessageId] = useState(null)
@@ -138,11 +151,13 @@ export default function App() {
   const [endingSupport, setEndingSupport] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [showThoughtLine, setShowThoughtLine] = useState(false)
+  const [streamingMessageId, setStreamingMessageId] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeSidebarPanel, setActiveSidebarPanel] = useState(null)
   const [settingsTab, setSettingsTab] = useState('general')
   const [activeHistoryId, setActiveHistoryId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [authTransition, setAuthTransition] = useState(null)
 
   const loadConversations = useCallback(async () => {
     const items = await apiRequest('/conversations')
@@ -195,7 +210,8 @@ export default function App() {
   const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS)
   const [notificationNow, setNotificationNow] = useState(() => Date.now())
   const [notifOpen, setNotifOpen] = useState(false)
-  const [dismissedAdvisoryId, setDismissedAdvisoryId] = useState(null)
+  const notificationSessionUserRef = useRef(null)
+  const seenAnnouncementVersionsRef = useRef(new Set())
   const notifRef = useRef(null)
 
   // Toast notification system state
@@ -221,10 +237,21 @@ export default function App() {
       const items = (data.notifications || []).map((item) => ({
         ...item,
         id: String(item._id),
+        versionKey: `${item._id}:${item.publishedAt || item.createdAt}`,
         unread: Boolean(item.unread),
         time: new Date(item.publishedAt || item.createdAt).toLocaleString(),
         tag: item.category,
       }))
+      const seenVersions = seenAnnouncementVersionsRef.current
+      if (notificationSessionUserRef.current !== userId) {
+        notificationSessionUserRef.current = userId
+        seenAnnouncementVersionsRef.current = new Set(items.map((item) => item.versionKey))
+        setNotifOpen(true)
+      } else {
+        const hasNewAnnouncement = items.some((item) => !seenVersions.has(item.versionKey))
+        if (hasNewAnnouncement) setNotifOpen(true)
+        items.forEach((item) => seenVersions.add(item.versionKey))
+      }
       setNotifications(items)
     } catch (error) {
       if (error.status !== 401 && error.status !== 403) console.warn('Unable to load announcements:', error.message)
@@ -233,6 +260,29 @@ export default function App() {
 
   const openAnnouncementNotification = () => {
     setNotifOpen((open) => !open)
+  }
+
+  const markAllNotificationsRead = async () => {
+    setNotifications((prev) => prev.map((item) => ({ ...item, unread: false })))
+    if (!userId) return
+    try {
+      await apiRequest('/announcements/read-all', { method: 'POST', body: JSON.stringify({}) })
+    } catch (error) {
+      console.warn('Unable to mark all announcements as read:', error.message)
+      void loadNotifications()
+    }
+  }
+
+  const clearAllNotifications = async () => {
+    setNotifications([])
+    setNotifOpen(true)
+    if (!userId) return
+    try {
+      await apiRequest('/announcements/dismiss-all', { method: 'POST', body: JSON.stringify({}) })
+    } catch (error) {
+      console.warn('Unable to clear announcements:', error.message)
+      void loadNotifications()
+    }
   }
 
   const selectAnnouncement = (announcement) => {
@@ -248,6 +298,13 @@ export default function App() {
   const activeNotifications = notifications.filter((item) => (
     !item.expiresAt || new Date(item.expiresAt).getTime() > notificationNow
   ))
+
+  useEffect(() => {
+    if (userId) return
+    notificationSessionUserRef.current = null
+    seenAnnouncementVersionsRef.current = new Set()
+    setNotifOpen(false)
+  }, [userId])
 
   // Remove expired announcements from every student notification surface as
   // soon as their expiry is reached, even if the next server poll is later.
@@ -265,18 +322,6 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [notifications, notificationNow, loadNotifications])
 
-  // Surface the newest published announcement for a 10-second advisory period.
-  // Respect a nearer announcement expiry when less than 10 seconds remain.
-  const newestActiveNotification = activeNotifications[0]
-  const timedAdvisory = newestActiveNotification && String(newestActiveNotification.id) !== dismissedAdvisoryId
-    ? newestActiveNotification
-    : null
-  const advisoryDisplayDuration = useMemo(() => {
-    if (!timedAdvisory) return 0
-    const expiry = timedAdvisory.expiresAt ? new Date(timedAdvisory.expiresAt).getTime() : 0
-    return Math.min(10000, expiry > Date.now() ? expiry - Date.now() : 10000)
-  }, [timedAdvisory?.id, timedAdvisory?.expiresAt])
-
   useEffect(() => {
     if (!notifOpen) return undefined
     const handleClickOutside = (event) => {
@@ -289,16 +334,9 @@ export default function App() {
   useEffect(() => {
     if (!userId) { setNotifications([]); return undefined }
     void loadNotifications()
-    const timer = window.setInterval(() => { void loadNotifications() }, 60000)
+    const timer = window.setInterval(() => { void loadNotifications() }, 15000)
     return () => window.clearInterval(timer)
   }, [userId, loadNotifications])
-
-  useEffect(() => {
-    if (!timedAdvisory || advisoryDisplayDuration <= 0) return undefined
-    const advisoryId = String(timedAdvisory.id)
-    const timer = window.setTimeout(() => setDismissedAdvisoryId(advisoryId), advisoryDisplayDuration)
-    return () => window.clearTimeout(timer)
-  }, [timedAdvisory?.id, advisoryDisplayDuration])
 
   useEffect(() => {
     if (!userId) {
@@ -555,7 +593,15 @@ export default function App() {
       window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
       setGoogleAuthError('')
     }
-    setView(nextView)
+    if (authTransitionTimerRef.current) window.clearTimeout(authTransitionTimerRef.current)
+    if (authTransitionResetRef.current) window.clearTimeout(authTransitionResetRef.current)
+    const currentView = view
+    setAuthTransition({ from: currentView, to: nextView, phase: 'exiting' })
+    authTransitionTimerRef.current = window.setTimeout(() => {
+      setView(nextView)
+      setAuthTransition({ from: nextView, to: nextView, phase: 'entering' })
+      authTransitionResetRef.current = window.setTimeout(() => setAuthTransition(null), 180)
+    }, 180)
   }
 
   const enterHome = (name = 'Guest', role = 'Guest', course = '') => {
@@ -591,6 +637,20 @@ export default function App() {
     } catch (error) {
       setProfileError(error.message || 'Unable to update your profile.')
     } finally { setProfileSaving(false) }
+  }
+
+  const handleProfilePhotoChange = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      setProfilePhotoError('Profile photo must be 2 MB or smaller.')
+      event.target.value = ''
+      return
+    }
+    setProfilePhotoError('')
+    const reader = new FileReader()
+    reader.onload = () => setProfilePhoto(String(reader.result || ''))
+    reader.readAsDataURL(file)
   }
 
   const handleAccountAction = async () => {
@@ -652,21 +712,80 @@ export default function App() {
     clearPendingChatTimers()
     const assistantMsgId = getNextId('asst_msg')
     const assistantTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const setAssistantText = (text, answer = {}) => {
+      const assistantMessage = {
+        id: assistantMsgId,
+        sender: 'assistant',
+        text: escapeChatText(text),
+        followUps: answer.followUps || [],
+        references: answer.references || [],
+        provider: answer.provider,
+        timestamp: assistantTimestamp,
+        escalate: shouldOfferLiveSupport({ ...answer, text }),
+      }
+      setMessages((prev) => prev.some((message) => message.id === assistantMsgId)
+        ? prev.map((message) => message.id === assistantMsgId ? assistantMessage : message)
+        : [...prev, assistantMessage])
+    }
     try {
-      const data = await apiRequest('/chat', {
-        method: 'POST',
-        body: JSON.stringify({ question: trimmed, ...(activeHistoryId ? { conversationId: activeHistoryId } : {}) }),
-      })
+      let data
+      if (isGuest) {
+        data = await apiRequest('/chat', {
+          method: 'POST',
+          body: JSON.stringify({ question: trimmed }),
+        })
+      } else {
+        const requestBody = { question: trimmed, ...(activeHistoryId ? { conversationId: activeHistoryId } : {}) }
+        const stream = await apiStreamRequest('/chat', {
+          method: 'POST',
+          body: JSON.stringify({ ...requestBody, stream: true }),
+        })
+        const reader = stream.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let streamedText = ''
+        data = null
+        const processEvent = (eventText) => {
+          const dataLine = eventText.split('\n').find((line) => line.startsWith('data:'))
+          if (!dataLine) return
+          const event = JSON.parse(dataLine.slice(5).trim())
+          if (event.error) throw new Error(event.error)
+          if (event.token) {
+            streamedText += event.token
+            setStreamingMessageId(assistantMsgId)
+            setShowThoughtLine(false)
+            setAssistantText(streamedText)
+          }
+          if (event.done) data = event
+        }
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const events = buffer.split('\n\n')
+            buffer = events.pop()
+            events.forEach(processEvent)
+          }
+          buffer += decoder.decode()
+          if (buffer.trim()) processEvent(buffer)
+        } finally {
+          reader.releaseLock()
+        }
+        if (!data) throw new Error('The response stream ended before the answer was complete.')
+      }
       if (data.conversationId) setActiveHistoryId(data.conversationId)
-      setMessages((prev) => [...prev, { id: assistantMsgId, sender: 'assistant', text: escapeChatText(data.text), followUps: data.followUps || [], references: data.references || [], provider: data.provider, timestamp: assistantTimestamp, escalate: shouldOfferLiveSupport(data) }])
+      setAssistantText(data.text, data)
       if (!isGuest) {
-        try { await loadConversations() } catch (error) { console.error('Unable to refresh conversations:', error.message) }
+        void loadConversations().catch((error) => console.error('Unable to refresh conversations:', error.message))
       }
       if (pref('soundEffects', false)) playCompletionChime()
     } catch (error) {
       console.error('Chat error:', error)
-      setMessages((prev) => [...prev, { id: assistantMsgId, sender: 'assistant', text: escapeChatText(`I couldn't get a response from the server. ${error.message || 'Please try again.'}`), timestamp: assistantTimestamp, escalate: true }])
+      const errorText = `I couldn't get a response from the server. ${error.message || 'Please try again.'}`
+      setAssistantText(errorText, { escalate: true })
     } finally {
+      setStreamingMessageId(null)
       setIsTyping(false)
       thoughtHideTimerRef.current = window.setTimeout(() => {
         setShowThoughtLine(false)
@@ -685,6 +804,19 @@ export default function App() {
     if (window.innerWidth <= 900) {
       setSidebarOpen(false)
     }
+  }
+
+  const handleClearConversation = async () => {
+    if (activeHistoryId && userId) {
+      try {
+        await apiRequest(`/conversations/${encodeURIComponent(activeHistoryId)}`, { method: 'DELETE' })
+        setHistoryList((previous) => previous.filter((item) => item.id !== activeHistoryId))
+      } catch (error) {
+        showToast({ type: 'error', title: 'Could not clear conversation', message: error.message })
+        return
+      }
+    }
+    handleNewConversation()
   }
 
   const handleSelectHistory = async (item) => {
@@ -735,8 +867,9 @@ export default function App() {
   }
 
   if (view === 'login' || view === 'signup' || view === 'forgot-password') {
+    const authPageClass = authTransition?.phase === 'entering' ? 'auth-transition-page--entering' : authTransition?.phase === 'exiting' ? 'auth-transition-page--exiting' : ''
     return (
-      <div className={`min-h-dvh w-full bg-white text-slate-900 theme-${effectiveTheme}`}>
+      <div className={`min-h-dvh w-full bg-white text-slate-900 theme-${effectiveTheme} ${authPageClass}`.trim()}>
         {view === 'login' ? (
           <LoginPage
             onGuest={() => enterHome('Guest', 'Guest')}
@@ -749,7 +882,20 @@ export default function App() {
         ) : view === 'signup' ? (
           <SignupPage
             onBack={() => navigateAuthPage('login')}
-            onVerified={() => navigateAuthPage('login')}
+            onVerified={async () => {
+              try {
+                const { user } = await apiRequest('/auth/me')
+                if (!applyAuthenticatedUser(user)) return
+                try {
+                  await loadConversations()
+                } catch (error) {
+                  console.error('Unable to load conversations:', error.message)
+                }
+              } catch (error) {
+                console.error('Unable to open home after signup:', error.message)
+                navigateAuthPage('login')
+              }
+            }}
           />
         ) : (
           <ForgotPasswordPage
@@ -1030,8 +1176,13 @@ export default function App() {
                       <small>{userRole || 'Guest'}</small>
                     </div>
 
+                    <label className="profile-field">
+                      <span>Choose profile photo</span>
+                      <input type="file" accept="image/*" onChange={handleProfilePhotoChange} />
+                    </label>
+                    {profilePhotoError && <p className="profile-form-message is-error" role="alert">{profilePhotoError}</p>}
                     {profileError && <p className="profile-form-message is-error" role="alert">{profileError}</p>}
-                    {profileSaved && <p className="profile-form-message" role="status">Profile updated.</p>}
+                    {profileSaved && <p className="profile-form-message" role="status">Profile changes saved.</p>}
                     <div className="profile-form-actions">
                       <button
                         type="button"
@@ -1264,7 +1415,7 @@ export default function App() {
                   <header className="notif-popover-header">
                     <div>
                       <h2>Announcements</h2>
-                      <p>{unreadCount ? `${unreadCount} unread announcement${unreadCount === 1 ? '' : 's'}` : 'You are all caught up'}</p>
+                      <p>{unreadCount ? `${unreadCount} unread announcement${unreadCount === 1 ? '' : 's'}` : 'Unread (0)'}</p>
                     </div>
                     <button type="button" className="notif-popover-close" onClick={() => setNotifOpen(false)} aria-label="Close announcements">×</button>
                   </header>
@@ -1272,7 +1423,7 @@ export default function App() {
                     {activeNotifications.length === 0 ? (
                       <div className="notif-empty">
                         <span className="notif-empty-icon" aria-hidden="true">🔔</span>
-                        <strong>No announcements yet</strong>
+                        <strong>You're all caught up with university advisories!</strong>
                         <p>New campus announcements will appear here.</p>
                       </div>
                     ) : activeNotifications.map((item) => (
@@ -1291,8 +1442,14 @@ export default function App() {
                   </div>
                   {activeNotifications.length > 0 && (
                     <footer className="notif-popover-footer">
-                      <span>Showing {activeNotifications.length} announcement{activeNotifications.length === 1 ? '' : 's'}</span>
-                      <button type="button" onClick={() => void loadNotifications()}>Refresh</button>
+                      <button type="button" onClick={markAllNotificationsRead} aria-label="Mark all read">Mark all read</button>
+                      <button type="button" onClick={clearAllNotifications} aria-label="Clear">Clear</button>
+                    </footer>
+                  )}
+                  {activeNotifications.length === 0 && (
+                    <footer className="notif-popover-footer">
+                      <button type="button" onClick={markAllNotificationsRead} aria-label="Mark all read">Mark all read</button>
+                      <button type="button" onClick={clearAllNotifications} aria-label="Clear">Clear</button>
                     </footer>
                   )}
                 </section>
@@ -1302,7 +1459,7 @@ export default function App() {
               <button
                 className="reset-chat-btn"
                 type="button"
-                onClick={handleNewConversation}
+                onClick={() => void handleClearConversation()}
                 title="Start a new conversation"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1326,30 +1483,6 @@ export default function App() {
             </button>
           </div>
         </header>
-
-        {timedAdvisory && (
-          <aside className="campus-alert-banner" aria-label="Timed campus advisory">
-            <div className="campus-alert-content">
-              <span className="campus-alert-badge">{timedAdvisory.category === 'campus' ? 'CAMPUS ADVISORY' : (timedAdvisory.tag || timedAdvisory.category).toUpperCase()}</span>
-              <p className="campus-alert-msg"><strong>{timedAdvisory.title}</strong>{' '}{timedAdvisory.message}</p>
-            </div>
-            <button
-              type="button"
-              className="campus-alert-close"
-              onClick={() => {
-                selectAnnouncement(timedAdvisory)
-                setDismissedAdvisoryId(String(timedAdvisory.id))
-              }}
-              aria-label="Dismiss campus advisory"
-            >×</button>
-            <span
-              key={`${timedAdvisory.id}-${timedAdvisory.expiresAt || 'persistent'}`}
-              className="campus-alert-duration-bar countdown"
-              style={{ animationDuration: `${advisoryDisplayDuration}ms` }}
-              aria-hidden="true"
-            />
-          </aside>
-        )}
 
         {/* Content Area: Welcome Center Screen OR Chat Thread */}
         <div className="stage main-content-scroll">
@@ -1483,7 +1616,7 @@ export default function App() {
                   </div>
                 ))}
 
-                {isTyping && !pref('showThinking', true) && (
+                {isTyping && !streamingMessageId && !pref('showThinking', true) && (
                   <div className="msg bot message-assistant">
                     <div className="av message-avatar" aria-hidden="true">
                       <img src={upangLogo} alt="UPang" className="avatar-torch" />
@@ -1496,7 +1629,7 @@ export default function App() {
                   </div>
                 )}
 
-                {(isTyping || showThoughtLine) && pref('showThinking', true) && (
+                {(isTyping || showThoughtLine) && !streamingMessageId && pref('showThinking', true) && (
                   <div className="msg bot message-assistant">
                     <div className="av message-avatar" aria-hidden="true">
                       <img src={upangLogo} alt="UPang" className="avatar-torch" />

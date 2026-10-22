@@ -22,6 +22,9 @@ test("no matching references use the LLM's general knowledge prompt", async () =
   const answer = await generateAnswerFromKnowledge("hello", []);
 
   assert.equal(answer, "Hello! How can I help?");
+  assert.equal(requestBody.keep_alive, process.env.OLLAMA_KEEP_ALIVE || "30m");
+  assert.equal(requestBody.options.num_predict, 80);
+  assert.equal(requestBody.options.num_ctx, undefined);
   assert.match(requestBody.messages[0].content, /general knowledge questions directly/i);
   assert.doesNotMatch(requestBody.messages[0].content, /Database references:/i);
 });

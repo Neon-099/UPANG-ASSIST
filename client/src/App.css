@@ -136,31 +136,31 @@ html, body, #root {
 .home-entry .chat-thread,
 .home-entry .chat-composer-wrap,
 .home-entry .inquiry-card {
-  animation: home-content-slide-up 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: home-content-slide-up 180ms ease-out both;
 }
 
-.home-entry .sidebar > .brand { animation-delay: 30ms; }
-.home-entry .sidebar > .new-conversation { animation-delay: 85ms; }
-.home-entry .sidebar > .sidebar-search-box { animation-delay: 140ms; }
-.home-entry .sidebar > .history-list { animation-delay: 195ms; }
-.home-entry .sidebar > .sidebar-links { animation-delay: 250ms; }
-.home-entry .sidebar > .sidebar-user-card { animation-delay: 305ms; }
-.home-entry .main-topbar { animation-delay: 65ms; }
-.home-entry .campus-alert-banner { animation-delay: 130ms; }
-.home-entry .welcome-torch-emblem { animation-delay: 150ms; }
-.home-entry .welcome-title-bold { animation-delay: 205ms; }
-.home-entry .welcome-sub-prompt { animation-delay: 260ms; }
-.home-entry .inquiries-section-header { animation-delay: 315ms; }
-.home-entry .chat-thread { animation-delay: 315ms; }
-.home-entry .chat-composer-wrap { animation-delay: 390ms; }
-.home-entry .inquiry-card:nth-child(1) { animation-delay: 370ms; }
-.home-entry .inquiry-card:nth-child(2) { animation-delay: 420ms; }
-.home-entry .inquiry-card:nth-child(3) { animation-delay: 470ms; }
-.home-entry .inquiry-card:nth-child(4) { animation-delay: 520ms; }
-.home-entry .inquiry-card:nth-child(5) { animation-delay: 570ms; }
-.home-entry .inquiry-card:nth-child(6) { animation-delay: 620ms; }
-.home-entry .inquiry-card:nth-child(7) { animation-delay: 670ms; }
-.home-entry .inquiry-card:nth-child(8) { animation-delay: 720ms; }
+.home-entry .sidebar > .brand { animation-delay: 0ms; }
+.home-entry .sidebar > .new-conversation { animation-delay: 10ms; }
+.home-entry .sidebar > .sidebar-search-box { animation-delay: 20ms; }
+.home-entry .sidebar > .history-list { animation-delay: 30ms; }
+.home-entry .sidebar > .sidebar-links { animation-delay: 40ms; }
+.home-entry .sidebar > .sidebar-user-card { animation-delay: 50ms; }
+.home-entry .main-topbar { animation-delay: 10ms; }
+.home-entry .campus-alert-banner { animation-delay: 20ms; }
+.home-entry .welcome-torch-emblem { animation-delay: 20ms; }
+.home-entry .welcome-title-bold { animation-delay: 30ms; }
+.home-entry .welcome-sub-prompt { animation-delay: 40ms; }
+.home-entry .inquiries-section-header { animation-delay: 50ms; }
+.home-entry .chat-thread { animation-delay: 50ms; }
+.home-entry .chat-composer-wrap { animation-delay: 60ms; }
+.home-entry .inquiry-card:nth-child(1) { animation-delay: 40ms; }
+.home-entry .inquiry-card:nth-child(2) { animation-delay: 50ms; }
+.home-entry .inquiry-card:nth-child(3) { animation-delay: 60ms; }
+.home-entry .inquiry-card:nth-child(4) { animation-delay: 70ms; }
+.home-entry .inquiry-card:nth-child(5) { animation-delay: 80ms; }
+.home-entry .inquiry-card:nth-child(6) { animation-delay: 90ms; }
+.home-entry .inquiry-card:nth-child(7) { animation-delay: 100ms; }
+.home-entry .inquiry-card:nth-child(8) { animation-delay: 110ms; }
 
 @keyframes home-content-slide-up {
   from {
@@ -170,6 +170,27 @@ html, body, #root {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-entry .sidebar > .brand,
+  .home-entry .sidebar > .new-conversation,
+  .home-entry .sidebar > .sidebar-search-box,
+  .home-entry .sidebar > .history-list,
+  .home-entry .sidebar > .sidebar-links,
+  .home-entry .sidebar > .sidebar-user-card,
+  .home-entry .main-topbar,
+  .home-entry .campus-alert-banner,
+  .home-entry .welcome-torch-emblem,
+  .home-entry .welcome-title-bold,
+  .home-entry .welcome-sub-prompt,
+  .home-entry .inquiries-section-header,
+  .home-entry .chat-thread,
+  .home-entry .chat-composer-wrap,
+  .home-entry .inquiry-card {
+    animation-duration: 0.01ms;
+    animation-delay: 0ms;
   }
 }
 
@@ -1001,7 +1022,7 @@ html, body, #root {
 .notif-item.notif-advisory:hover { background: color-mix(in srgb, var(--mint) 52%, var(--card)); }
 .notif-item.notif-advisory.unread { background: color-mix(in srgb, var(--gold-soft) 50%, var(--mint)); }
 .notif-advisory .notif-tag { flex: 0 0 auto; padding: 3px 8px; border-radius: 6px; background: var(--gold); color: #2a1d04; }
-.notif-advisory-copy { flex: 1 1 210px; min-width: 0; color: var(--ink); font-size: 0.82rem; line-height: 1.5; }
+.notif-advisory-copy { flex: 1 1 210px; min-width: 0; max-height: 120px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; color: var(--ink); font-size: 0.82rem; line-height: 1.5; }
 .notif-advisory .notif-item-title { font-size: inherit; }
 .notif-advisory .notif-item-message { display: inline; overflow: visible; -webkit-line-clamp: unset; -webkit-box-orient: unset; color: var(--mute); }
 .notif-advisory .notif-advisory-time { flex: 0 0 auto; margin-left: auto; color: var(--mute); font-size: 0.68rem; }
@@ -3180,9 +3201,12 @@ body:has(.signup-page-root) #root {
 }
 
 /* ── Form Controls ── */
+
+
 .login-form {
   display: flex;
   flex-direction: column;
+  
   gap: 14px;
   width: 100%;
 }
@@ -3192,6 +3216,7 @@ body:has(.signup-page-root) #root {
   font-weight: 600;
   color: var(--ink);
   margin-bottom: -6px;
+  
 }
 
 .password-label-row {
@@ -4646,5 +4671,3 @@ html, body, #root {
     max-height: 90dvh;
   }
 }
-
-

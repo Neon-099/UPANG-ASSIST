@@ -1,4 +1,5 @@
 const { createEmbedding, getKeywordRelevance } = require("./knowledgeIndex");
+const SEMANTIC_EMBEDDING_TIMEOUT_MS = 1500;
 
 function cosineSimilarity(first, second) {
   if (!Array.isArray(first) || !Array.isArray(second) || first.length !== second.length) {
@@ -24,7 +25,9 @@ async function findSemanticReferences(question, references, options = {}) {
 
   const limit = options.limit ?? 3;
   const minScore = options.minScore ?? 0.48;
-  const questionEmbedding = await createEmbedding(question);
+  const questionEmbedding = await createEmbedding(question, {
+    timeoutMs: SEMANTIC_EMBEDDING_TIMEOUT_MS
+  });
   const scored = references
     .filter((reference) => Array.isArray(reference.embedding) && reference.embedding.length > 0)
     .map((reference) => ({

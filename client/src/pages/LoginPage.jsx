@@ -5,7 +5,7 @@ import { GoogleIcon } from '../components/auth/AuthElements'
 
 const fieldLabel = 'text-[13px] font-semibold text-gray-800'
 const inputShell = 'flex h-12 items-center gap-2.5 rounded-xl border border-[#cbd5ce] bg-white px-3.5 transition-colors hover:border-[#9eafa3] focus-within:border-[#1b734b] focus-within:ring-[3px] focus-within:ring-emerald-800/10'
-const inputClass = 'h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400'
+const inputClass = 'h-full min-w-0 flex-1 bg-transparent text-sm text-gray-900  outline-none placeholder:text-gray-400'
 const socialButton = 'flex h-11 items-center justify-center gap-2 rounded-xl border border-[#cbd5ce] bg-white px-3 text-[13px] font-semibold text-gray-800 transition hover:-translate-y-px hover:border-[#9eafa3] hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60'
 const MAX_LOGIN_ATTEMPTS = 3
 const LOGIN_LOCKOUT_SECONDS = 15
@@ -123,7 +123,8 @@ export default function LoginPage({ onGuest, onGoogle, onSignUp, onForgotPasswor
                   <rect x="2" y="4" width="20" height="16" rx="2" />
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
-                <input id="email" className={inputClass} type="email" placeholder="first.last.up@phinmaed.com" pattern="[A-Za-z0-9]+([.][A-Za-z0-9]+)+[.]up@phinmaed[.]com" title="Use the format first.last.up@phinmaed.com (30 characters maximum)." maxLength={30} value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
+                <input id="email"   style={{ border: "none", outline: "none", boxShadow: "none" }}
+                       className={inputClass} type="email" placeholder="first.last.up@phinmaed.com" pattern="[A-Za-z0-9]+([.][A-Za-z0-9]+)+[.]up@phinmaed[.]com" title="Use the format first.last.up@phinmaed.com (30 characters maximum)." maxLength={30} value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
               </div>
             </div>
 
@@ -134,7 +135,8 @@ export default function LoginPage({ onGuest, onGoogle, onSignUp, onForgotPasswor
                   <rect x="3" y="11" width="18" height="11" rx="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
-                <input id="password" className={inputClass} type={showPassword ? 'text' : 'password'} placeholder="••••••••" maxLength={12} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" />
+                <input id="password"   style={{ border: "none", outline: "none", boxShadow: "none" }}
+                       className={inputClass} type={showPassword ? 'text' : 'password'} placeholder="••••••••" maxLength={12} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" />
                 <button type="button" className="grid shrink-0 place-items-center rounded-lg p-1 text-gray-400 transition hover:text-gray-700" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                   {showPassword ? (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
